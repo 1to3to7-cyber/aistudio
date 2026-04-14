@@ -18,7 +18,7 @@
 
 @layer base {
   :root {
-    --background: #fdfcfb;
+    --background: #ffffff;
     --foreground: #1c1917;
     --primary: #9a3412;
     --primary-foreground: #fff7ed;
@@ -35,7 +35,7 @@
   }
 
   .theme-earth {
-    --background: #fdfcfb;
+    --background: #ffffff;
     --foreground: #1c1917;
     --primary: #9a3412; /* Terracotta */
     --secondary: #fde68a; /* Gold */

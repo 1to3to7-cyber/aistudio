@@ -1904,44 +1904,87 @@ function AIAssistant({ isOpen, onClose, userContext }: { isOpen: boolean; onClos
     <AnimatePresence>
       {isOpen && (
         <motion.div 
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          initial={{ opacity: 0, scale: 0.9, y: 20, x: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 20, x: 20 }}
+          className="fixed bottom-24 right-6 z-[100] w-[calc(100vw-3rem)] max-w-md"
         >
-          <div className="bead-card w-full max-w-md bg-[var(--card-bg)] overflow-hidden flex flex-col max-h-[80vh]">
+          <div className="bead-card bg-[var(--card-bg)] overflow-hidden flex flex-col max-h-[70vh] shadow-2xl border-4">
             <div className="bg-primary p-4 text-white flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5" />
-                <h3 className="font-black uppercase tracking-tighter">TVET Assistant</h3>
+                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1">
+                  <Logo showText={false} className="w-full h-full" />
+                </div>
+                <h3 className="font-black uppercase tracking-tighter text-sm">TVET Assistant</h3>
               </div>
-              <button onClick={onClose} className="hover:rotate-90 transition-transform"><X /></button>
+              <button onClick={onClose} className="hover:rotate-90 transition-transform"><X className="w-5 h-5" /></button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 font-medium">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 font-medium no-scrollbar">
               {messages.map((m, i) => (
-                <div key={i} className={cn(
-                  "p-3 rounded-2xl max-w-[85%] text-sm",
-                  m.role === 'user' ? "bg-muted ml-auto rounded-tr-none" : "bg-secondary/20 mr-auto rounded-tl-none border border-secondary/50"
-                )}>
-                  {m.text}
-                </div>
+                <motion.div 
+                  key={i}
+                  initial={{ opacity: 0, x: m.role === 'user' ? 20 : -20, y: 10 }}
+                  animate={{ opacity: 1, x: 0, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className={cn(
+                    "flex gap-2 items-end",
+                    m.role === 'user' ? "flex-row-reverse" : "flex-row"
+                  )}
+                >
+                  {m.role === 'ai' && (
+                    <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 border border-primary/20">
+                      <Logo showText={false} className="w-4 h-4" />
+                    </div>
+                  )}
+                  <div className={cn(
+                    "p-3 rounded-2xl max-w-[85%] text-xs leading-relaxed shadow-sm",
+                    m.role === 'user' 
+                      ? "bg-primary text-white rounded-tr-none" 
+                      : "bg-muted text-current rounded-tl-none border-2 border-current/5"
+                  )}>
+                    {m.role === 'ai' ? (
+                      <div className="space-y-2">
+                        {m.text.split('\n').map((line, idx) => (
+                          <motion.p 
+                            key={idx}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: (i * 0.1) + (idx * 0.05) }}
+                            className={cn(
+                              line.startsWith('[') ? "text-primary font-black uppercase tracking-tighter mt-2" : "",
+                              line.includes(':') ? "text-secondary-foreground font-bold" : ""
+                            )}
+                          >
+                            {line}
+                          </motion.p>
+                        ))}
+                      </div>
+                    ) : (
+                      m.text
+                    )}
+                  </div>
+                </motion.div>
               ))}
-              {isLoading && <div className="text-xs font-black uppercase animate-pulse text-primary">Assistant is thinking...</div>}
+              {isLoading && (
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase text-primary animate-pulse">
+                  <Sparkles className="w-3 h-3" /> Assistant is thinking...
+                </div>
+              )}
             </div>
 
-            <div className="p-4 border-t-2 border-current flex gap-2">
+            <div className="p-4 border-t-2 border-current flex gap-2 bg-muted/30">
               <input 
                 type="text" 
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder={t('ask_placeholder')}
-                className="flex-1 bg-muted border-2 border-current rounded-xl px-4 py-2 font-bold focus:outline-none"
+                className="flex-1 bg-white border-2 border-current rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:ring-2 ring-primary/20"
               />
               <button 
                 onClick={handleSend}
-                className="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center hover:scale-105 transition-transform"
+                className="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md"
               >
                 <Send className="w-5 h-5" />
               </button>

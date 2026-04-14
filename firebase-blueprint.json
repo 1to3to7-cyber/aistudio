@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Information about a student or admin user",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "trade": { "type": "string" },
+        "theme": { "type": "string" },
+        "avatar": { "type": "string" },
+        "totalHours": { "type": "number" },
+        "badges": { "type": "array", "items": { "type": "string" } },
+        "school": { "type": "string" },
+        "level": { "type": "string" },
+        "idNumber": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "year": { "type": "string" },
+        "isAdmin": { "type": "boolean" }
+      },
+      "required": ["name", "trade", "email"]
+    },
+    "LogEntry": {
+      "title": "Logbook Entry",
+      "description": "A single daily log entry",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "task": { "type": "string" },
+        "hours": { "type": "number" },
+        "tools": { "type": "array", "items": { "type": "string" } },
+        "materials": { "type": "array", "items": { "type": "string" } },
+        "steps": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["draft", "submitted", "verified"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "task", "hours"]
+    },
+    "GlobalConfig": {
+      "title": "Global Configuration",
+      "description": "System-wide branding and settings controlled by admin",
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string" },
+        "customLogo": { "type": "string" },
+        "customDevImage": { "type": "string" },
+        "customDevName": { "type": "string" },
+        "customPrimaryColor": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data"
+    },
+    "/users/{userId}/entries/{entryId}": {
+      "schema": "LogEntry",
+      "description": "User's logbook entries"
+    },
+    "/config/branding": {
+      "schema": "GlobalConfig",
+      "description": "Global branding configuration"
+    }
+  }
+}

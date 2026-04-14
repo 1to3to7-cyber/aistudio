@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+@layer base {
+  :root {
+    --background: #fdfcfb;
+    --foreground: #1c1917;
+    --primary: #9a3412;
+    --primary-foreground: #fff7ed;
+    --secondary: #fde68a;
+    --secondary-foreground: #451a03;
+    --accent: #fbbf24;
+    --accent-foreground: #451a03;
+    --muted: #f5f5f4;
+    --muted-foreground: #57534e;
+    --border: #e7e5e4;
+    --radius: 0.75rem;
+    --bead-shadow: 4px 4px 0px rgba(0, 0, 0, 0.1);
+  }
+
+  .theme-earth {
+    --background: #fdfcfb;
+    --foreground: #1c1917;
+    --primary: #9a3412; /* Terracotta */
+    --secondary: #fde68a; /* Gold */
+    --accent: #fbbf24;
+  }
+
+  .theme-royal {
+    --background: #faf5ff;
+    --foreground: #2e1065;
+    --primary: #581c87; /* Purple */
+    --secondary: #fcd34d; /* Amber */
+    --accent: #f59e0b;
+  }
+
+  .theme-sunset {
+    --background: #fffaf5;
+    --foreground: #431407;
+    --primary: #ea580c; /* Orange */
+    --secondary: #b45309; /* Rust */
+    --accent: #f97316;
+  }
+
+  .theme-agaseke {
+    --background: #fcfaf7;
+    --foreground: #0c0a09;
+    --primary: #1c1917; /* Black */
+    --secondary: #f5f5f4; /* Cream */
+    --accent: #78716c;
+  }
+
+  .theme-kivu {
+    --background: #f0f9ff;
+    --foreground: #082f49;
+    --primary: #0369a1; /* Lake Blue */
+    --secondary: #fef3c7; /* Sand */
+    --accent: #0ea5e9;
+  }
+
+  .theme-umushanana {
+    --background: #fff1f2;
+    --foreground: #4c0519;
+    --primary: #be123c; /* Magenta */
+    --secondary: #fde047; /* Gold */
+    --accent: #e11d48;
+  }
+}
+
+@layer components {
+  .imigongo-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30 L30 0 L60 30 L30 60 Z' fill='none' stroke='currentColor' stroke-width='0.5' opacity='0.1'/%3E%3Cpath d='M30 0 L30 60 M0 30 L60 30' stroke='currentColor' stroke-width='0.5' opacity='0.1'/%3E%3C/svg%3E");
+  }
+
+  .bead-card {
+    @apply bg-white rounded-2xl border-2 border-current shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] transition-all hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,0.15)];
+    background-image: radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0);
+    background-size: 24px 24px;
+    background-position: -12px -12px;
+  }
+
+  .bead-button {
+    @apply relative overflow-hidden rounded-xl px-6 py-3 font-black uppercase tracking-tighter transition-all active:scale-95 border-2 border-current shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)];
+  }
+
+  .bead-button::before {
+    content: "";
+    @apply absolute inset-0 bg-white/30 opacity-0 transition-opacity hover:opacity-100;
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.1) 5px, rgba(255,255,255,0.1) 10px);
+  }
+
+  .bead-button-primary {
+    @apply bg-primary text-white hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,0.3)];
+  }
+
+  .bead-button-secondary {
+    @apply bg-secondary text-secondary-foreground hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,0.3)];
+  }
+
+  .corner-bead {
+    @apply absolute w-4 h-4 rounded-full border-2 border-current bg-white shadow-[inset_2px_2px_4px_rgba(0,0,0,0.2)];
+  }
+
+  .dev-button-pop {
+    @apply hover:bg-primary/10 hover:shadow-[0px_0px_15px_rgba(var(--primary-rgb),0.2)];
+  }
+}
+
+body {
+  @apply bg-[var(--background)] text-[var(--foreground)] font-sans min-h-screen;
+}

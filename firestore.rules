@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields: name, trade, theme, avatar, totalHours, badges, school, level, idNumber, phone, email, year, isAdmin
+    //
+    // Collection: users/{userId}/entries
+    // Document ID: {entryId}
+    // Fields: date, task, hours, tools, materials, steps, status, timestamp
+    //
+    // Collection: config
+    // Document ID: branding
+    // Fields: appName, customLogo, customDevImage, customDevName, customPrimaryColor
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
+         (request.auth.token.email == "1to3to7@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'trade', 'email']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidEntry(data) {
+      return data.keys().hasAll(['date', 'task', 'hours']) &&
+             data.task is string && data.task.size() > 0 && data.task.size() < 500 &&
+             data.hours is number && data.hours >= 0;
+    }
+
+    function isValidConfig(data) {
+      return data.keys().hasAny(['appName', 'customLogo', 'customDevImage', 'customDevName', 'customPrimaryColor']);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.isAdmin == resource.data.isAdmin || isAdmin());
+      
+      match /entries/{entryId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) && isValidEntry(request.resource.data);
+      }
+    }
+
+    match /config/branding {
+      allow read: if true; // Publicly readable for branding
+      allow write: if isAdmin() && isValidConfig(request.resource.data);
+    }
+
+    match /login_faults/{faultId} {
+      allow create: if true; // Allow logging failed attempts
+    }
+  }
+}

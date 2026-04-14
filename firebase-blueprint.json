@@ -46,7 +46,8 @@
         "customLogo": { "type": "string" },
         "customDevImage": { "type": "string" },
         "customDevName": { "type": "string" },
-        "customPrimaryColor": { "type": "string" }
+        "customPrimaryColor": { "type": "string" },
+        "certificates": { "type": "array", "items": { "type": "string" } }
       }
     }
   },
@@ -58,6 +59,10 @@
     "/users/{userId}/entries/{entryId}": {
       "schema": "LogEntry",
       "description": "User's logbook entries"
+    },
+    "/admin_chamber/{entryId}": {
+      "schema": "LogEntry",
+      "description": "Secure storage for admin-only logbook entries"
     },
     "/config/branding": {
       "schema": "GlobalConfig",

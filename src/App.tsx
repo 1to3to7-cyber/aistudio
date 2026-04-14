@@ -16,6 +16,7 @@ import {
   Download, 
   Sparkles, 
   Trash2,
+  Share2,
   Settings,
   Menu,
   X,
@@ -29,15 +30,21 @@ import {
   Calendar as CalendarIcon,
   Hammer,
   Package,
-  ListChecks
+  ListChecks,
+  ArrowUpDown,
+  SortAsc,
+  SortDesc,
+  Image as ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { cn } from './lib/utils';
 import { useTranslation } from 'react-i18next';
+import i18n from 'i18next';
 import { Theme, Trade, LogEntry, UserProfile } from './types';
 import { TRADES_WITH_ICONS, THEMES, BADGES, TRADE_KNOWLEDGE, DEVELOPER_INFO } from './constants';
+import { Logo } from './components/Logo';
 import { getAISuggestions, askPlatformAssistant, suggestTask } from './services/geminiService';
 
 import { 
@@ -63,6 +70,58 @@ import {
 } from 'firebase/storage';
 import { db, auth, storage, googleProvider, signInWithPopup, signOut } from './firebase';
 
+// --- Error Handling ---
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string;
+    email?: string | null;
+    emailVerified?: boolean;
+    isAnonymous?: boolean;
+    tenantId?: string | null;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  // We don't throw here to avoid crashing the UI, but we log it for the agent
+}
+
 // Connection Test
 async function testConnection() {
   try {
@@ -81,7 +140,49 @@ testConnection();
 
 // --- Components ---
 
-const AdminSignInModal = ({ isOpen, onClose, onLogin, customDevName }: { isOpen: boolean; onClose: () => void; onLogin: () => void; customDevName?: string }) => {
+const NATURE_IMAGES = [
+  "https://images.unsplash.com/photo-1516422317184-268d71010ee4?auto=format&fit=crop&q=80&w=1920", // Volcanoes
+  "https://images.unsplash.com/photo-1580137197581-df2bb346a786?auto=format&fit=crop&q=80&w=1920", // Lake Kivu
+  "https://images.unsplash.com/photo-1597484661643-2f5fef640dd1?auto=format&fit=crop&q=80&w=1920", // Tea Plantation
+  "https://images.unsplash.com/photo-1542332213-9b5a5a3fad35?auto=format&fit=crop&q=80&w=1920", // Nyungwe
+  "https://images.unsplash.com/photo-1516422317184-268d71010ee4?auto=format&fit=crop&q=80&w=1920", // Akagera
+];
+
+function NatureBackground() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex(prev => (prev + 1) % NATURE_IMAGES.length);
+    }, 20000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={index}
+          initial={{ opacity: 0, scale: 1.1 }}
+          animate={{ opacity: 0.3, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 2 }}
+          className="absolute inset-0"
+        >
+          <img 
+            src={NATURE_IMAGES[index]} 
+            alt="Rwanda Nature" 
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        </motion.div>
+      </AnimatePresence>
+      <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/40 to-background/80" />
+    </div>
+  );
+}
+
+const AdminSignInModal = ({ isOpen, onClose, onLogin, customDevName, customLogo }: { isOpen: boolean; onClose: () => void; onLogin: () => void; customDevName?: string; customLogo?: string }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -90,8 +191,9 @@ const AdminSignInModal = ({ isOpen, onClose, onLogin, customDevName }: { isOpen:
   const [isGoogleAuthenticated, setIsGoogleAuthenticated] = useState(false);
 
   const logFault = async (attemptedEmail: string, reason: string) => {
+    const path = 'login_faults';
     try {
-      await addDoc(collection(db, 'login_faults'), {
+      await addDoc(collection(db, path), {
         email: attemptedEmail,
         reason,
         timestamp: new Date().toISOString(),
@@ -99,7 +201,7 @@ const AdminSignInModal = ({ isOpen, onClose, onLogin, customDevName }: { isOpen:
         type: 'admin_login_fault'
       });
     } catch (e) {
-      console.error("Failed to log fault:", e);
+      handleFirestoreError(e, OperationType.CREATE, path);
     }
   };
 
@@ -111,7 +213,7 @@ const AdminSignInModal = ({ isOpen, onClose, onLogin, customDevName }: { isOpen:
     // Strict verification for professional security
     const isValidEmail = email.trim() === '1to3to7@gmail.com';
     const isValidPassword = password === '*# 1to3to7*#@@';
-    const isValidName = name.trim() === 'Bizimana Member Billionailler';
+    const isValidName = name.trim() === 'BIZIMANA FILS';
 
     if (isValidEmail && isValidPassword && isValidName) {
       onLogin();
@@ -156,11 +258,11 @@ const AdminSignInModal = ({ isOpen, onClose, onLogin, customDevName }: { isOpen:
         >
           <motion.div 
             initial={{ scale: 0.9, y: 40 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 40 }}
-            className="bead-card bg-white w-full max-w-md p-8 relative shadow-[0_0_50px_rgba(var(--primary-rgb),0.3)]"
+            className="bead-card bg-[var(--card-bg)] w-full max-w-md p-8 relative shadow-[0_0_50px_rgba(var(--primary-rgb),0.3)]"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex flex-col items-center mb-8">
-              <div className="w-16 h-16 bg-primary text-white rounded-2xl flex items-center justify-center text-2xl font-black mb-4 shadow-lg">BMB</div>
+              <Logo className="w-32 h-32 mb-4" imageUrl={customLogo} />
               <h2 className="text-3xl font-black uppercase tracking-tighter text-primary">Admin Gateway</h2>
               <p className="text-[10px] font-bold uppercase tracking-widest opacity-40">Authorized Personnel Only</p>
             </div>
@@ -172,7 +274,7 @@ const AdminSignInModal = ({ isOpen, onClose, onLogin, customDevName }: { isOpen:
                 <button 
                   onClick={handleGoogleSignIn}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-3 bg-white border-2 border-current py-4 rounded-xl font-black uppercase text-xs hover:bg-muted transition-all disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-3 bg-[var(--card-bg)] border-2 border-current py-4 rounded-xl font-black uppercase text-xs hover:bg-muted transition-all disabled:opacity-50"
                 >
                   <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
                   {isLoading ? 'Authenticating...' : 'Professional Google Sign-In'}
@@ -194,7 +296,7 @@ const AdminSignInModal = ({ isOpen, onClose, onLogin, customDevName }: { isOpen:
                     type="text" value={name} onChange={e => setName(e.target.value)}
                     disabled={isGoogleAuthenticated}
                     className="w-full bg-muted border-2 border-current rounded-xl px-4 py-3 font-bold focus:outline-none focus:ring-2 ring-primary transition-all disabled:opacity-50"
-                    placeholder="Bizimana Member Billionailler" required
+                    placeholder="BIZIMANA FILS" required
                   />
                 </div>
                 <div className="space-y-1">
@@ -247,10 +349,11 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
   const [devName, setDevName] = useState(user.customDevName || DEVELOPER_INFO.name);
   const [color, setColor] = useState(user.customPrimaryColor || '#9a3412');
   const [appName, setAppName] = useState(user.appName || 'RWANDA TVET');
+  const [certificates, setCertificates] = useState<string[]>(user.certificates || []);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: boolean }>({});
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'dev') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'dev' | 'cert') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -259,10 +362,28 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
       const storageRef = ref(storage, `branding/${type}_${Date.now()}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
+      
+      // Update local state
       if (type === 'logo') setLogo(url);
-      else setDevImg(url);
+      else if (type === 'dev') setDevImg(url);
+      else if (type === 'cert') {
+        setCertificates(prev => [...prev, url]);
+        setDevImg(url); // Auto-save to admin image
+      }
+
+      // Auto-save to Firestore for "fast" updates
+      const configRef = doc(db, 'config', 'branding');
+      await setDoc(configRef, {
+        appName,
+        customLogo: type === 'logo' ? url : logo,
+        customDevImage: (type === 'dev' || type === 'cert') ? url : devImg,
+        customDevName: devName,
+        customPrimaryColor: color,
+        certificates: type === 'cert' ? [...certificates, url] : certificates
+      }, { merge: true });
+
     } catch (error) {
-      console.error("Upload failed:", error);
+      handleFirestoreError(error, OperationType.WRITE, 'config/branding');
       alert("Upload failed. Check your connection.");
     } finally {
       setUploadProgress(prev => ({ ...prev, [type]: false }));
@@ -271,6 +392,7 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
 
   const handleSave = async () => {
     setIsSaving(true);
+    const path = 'config/branding';
     try {
       const configRef = doc(db, 'config', 'branding');
       await setDoc(configRef, {
@@ -278,7 +400,8 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
         customLogo: logo,
         customDevImage: devImg,
         customDevName: devName,
-        customPrimaryColor: color
+        customPrimaryColor: color,
+        certificates
       });
       setUser(prev => ({
         ...prev,
@@ -286,11 +409,12 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
         customDevImage: devImg,
         customDevName: devName,
         customPrimaryColor: color,
-        appName: appName
+        appName: appName,
+        certificates
       }));
       onClose();
     } catch (error) {
-      console.error("Error saving branding:", error);
+      handleFirestoreError(error, OperationType.WRITE, path);
       alert("Failed to save branding. Check permissions.");
     } finally {
       setIsSaving(false);
@@ -304,6 +428,18 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
       setDevName(DEVELOPER_INFO.name);
       setColor('#9a3412');
       setAppName('RWANDA TVET');
+      setCertificates([]);
+    }
+  };
+
+  const removeCertificate = async (index: number) => {
+    const newCerts = certificates.filter((_, i) => i !== index);
+    setCertificates(newCerts);
+    try {
+      const configRef = doc(db, 'config', 'branding');
+      await setDoc(configRef, { certificates: newCerts }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'config/branding');
     }
   };
 
@@ -316,15 +452,19 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
         >
           <motion.div 
             initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-            className="bead-card bg-white w-full max-w-md p-6 sm:p-8 relative overflow-y-auto max-h-[90vh]"
+            className="bead-card bg-[var(--card-bg)] w-full max-w-md p-6 sm:p-8 relative overflow-y-auto max-h-[90vh]"
             onClick={e => e.stopPropagation()}
           >
             <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-muted rounded-full transition-colors"><X className="w-5 h-5" /></button>
             <div className="flex items-center gap-3 mb-8">
               <div className="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center shadow-lg"><Settings className="w-6 h-6" /></div>
-              <div>
+              <div className="flex-1">
                 <h2 className="text-2xl font-black uppercase tracking-tighter text-primary leading-none">Control Engine</h2>
                 <p className="text-[10px] font-bold uppercase opacity-40 tracking-widest">Visual Identity Management</p>
+              </div>
+              <div className="flex items-center gap-1 bg-green-50 text-green-600 px-2 py-1 rounded-full border border-green-200 animate-pulse">
+                <div className="w-1.5 h-1.5 bg-green-600 rounded-full" />
+                <span className="text-[8px] font-black uppercase">Live Sync</span>
               </div>
             </div>
 
@@ -338,9 +478,12 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between">
+                <label className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between items-center">
                   <span>Custom Web Logo</span>
-                  {uploadProgress['logo'] && <span className="text-primary animate-pulse">Uploading...</span>}
+                  <div className="flex items-center gap-2">
+                    {logo && <div className="w-6 h-6 rounded border border-current overflow-hidden"><img src={logo} className="w-full h-full object-cover" /></div>}
+                    {uploadProgress['logo'] && <span className="text-primary animate-pulse">Uploading...</span>}
+                  </div>
                 </label>
                 <div className="flex gap-2">
                   <input 
@@ -359,13 +502,16 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
                 <input 
                   type="text" value={devName} onChange={e => setDevName(e.target.value)}
                   className="w-full bg-muted border-2 border-current rounded-xl px-4 py-3 font-bold focus:outline-none text-sm"
-                  placeholder="Bizimana Member Billionailler"
+                  placeholder="BIZIMANA FILS"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between">
+                <label className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between items-center">
                   <span>Custom Dev Image</span>
-                  {uploadProgress['dev'] && <span className="text-primary animate-pulse">Uploading...</span>}
+                  <div className="flex items-center gap-2">
+                    {devImg && <div className="w-6 h-6 rounded-full border border-current overflow-hidden"><img src={devImg} className="w-full h-full object-cover" /></div>}
+                    {uploadProgress['dev'] && <span className="text-primary animate-pulse">Uploading...</span>}
+                  </div>
                 </label>
                 <div className="flex gap-2">
                   <input 
@@ -392,6 +538,30 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
                   />
                 </div>
               </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase opacity-60 tracking-widest flex justify-between">
+                  <span>Certificate Gallery</span>
+                  {uploadProgress['cert'] && <span className="text-primary animate-pulse">Uploading...</span>}
+                </label>
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {certificates.map((cert, idx) => (
+                    <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-current/10">
+                      <img src={cert} className="w-full h-full object-cover" alt={`Cert ${idx}`} referrerPolicy="no-referrer" />
+                      <button 
+                        onClick={() => removeCertificate(idx)}
+                        className="absolute inset-0 bg-red-600/80 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="aspect-square rounded-lg border-2 border-dashed border-current/20 flex items-center justify-center cursor-pointer hover:bg-muted transition-colors">
+                    <Plus className="w-6 h-6 opacity-40" />
+                    <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'cert')} />
+                  </label>
+                </div>
+              </div>
               
               <div className="pt-4 space-y-3">
                 <button onClick={handleSave} className="bead-button bead-button-primary w-full py-4 shadow-lg">
@@ -410,7 +580,7 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
   );
 };
 
-const DeveloperModal = ({ isOpen, onClose, customImage, customName }: { isOpen: boolean; onClose: () => void; customImage?: string; customName?: string }) => {
+const DeveloperModal = ({ isOpen, onClose, customImage, customName, certificates }: { isOpen: boolean; onClose: () => void; customImage?: string; customName?: string; certificates?: string[] }) => {
   const { t } = useTranslation();
   return (
     <AnimatePresence>
@@ -426,7 +596,7 @@ const DeveloperModal = ({ isOpen, onClose, customImage, customName }: { isOpen: 
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.9, y: 20 }}
-            className="bead-card bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 relative"
+            className="bead-card bg-[var(--card-bg)] w-full max-w-3xl max-h-[90vh] overflow-y-auto p-8 relative"
             onClick={e => e.stopPropagation()}
           >
             <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-muted rounded-full transition-colors">
@@ -434,7 +604,7 @@ const DeveloperModal = ({ isOpen, onClose, customImage, customName }: { isOpen: 
             </button>
             
             <div className="flex flex-col md:flex-row gap-8 items-start">
-              <div className="w-full md:w-56 h-72 rounded-2xl border-4 border-current overflow-hidden bg-muted shadow-2xl shrink-0 relative group">
+              <div className="w-full md:w-64 h-80 rounded-2xl border-4 border-current overflow-hidden bg-muted shadow-2xl shrink-0 relative group">
                 <img 
                   src={customImage || "https://picsum.photos/seed/bizimana/400/600"} 
                   alt={customName || DEVELOPER_INFO.name} 
@@ -446,7 +616,8 @@ const DeveloperModal = ({ isOpen, onClose, customImage, customName }: { isOpen: 
               <div className="flex-1 space-y-6">
                 <div>
                   <h2 className="text-5xl font-black uppercase tracking-tighter leading-none text-primary">{customName || DEVELOPER_INFO.name}</h2>
-                  <p className="text-current font-black uppercase tracking-[0.3em] text-[10px] mt-3 opacity-60">Lead Developer & UI/UX Designer</p>
+                  <p className="text-current font-black uppercase tracking-[0.3em] text-[10px] mt-3 opacity-60">{DEVELOPER_INFO.role}</p>
+                  <p className="text-[10px] font-black uppercase text-primary mt-1">Founder of Rwanda TVET Logbook System</p>
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
@@ -488,12 +659,56 @@ const DeveloperModal = ({ isOpen, onClose, customImage, customName }: { isOpen: 
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="font-black uppercase opacity-40 text-[10px]">Skills</p>
-                  <div className="flex flex-wrap gap-2">
-                    {DEVELOPER_INFO.skills.map(s => (
-                      <span key={s} className="bg-muted px-2 py-1 rounded-lg font-bold text-xs border border-current/10">{s}</span>
-                    ))}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <p className="font-black uppercase opacity-40 text-[10px]">Skills & Expertise</p>
+                    <div className="flex flex-wrap gap-2">
+                      {DEVELOPER_INFO.skills.map(s => (
+                        <span key={s} className="bg-muted px-2 py-1 rounded-lg font-bold text-xs border border-current/10 uppercase">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-black uppercase opacity-40 text-[10px]">Languages Spoken</p>
+                    <div className="flex flex-wrap gap-2">
+                      {DEVELOPER_INFO.languages.map(l => (
+                        <span key={l} className="bg-primary/10 text-primary px-2 py-1 rounded-lg font-bold text-xs border border-primary/20">{l}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-black uppercase opacity-40 text-[10px]">Hobbies & Interests</p>
+                    <div className="flex flex-wrap gap-2">
+                      {DEVELOPER_INFO.hobbies.map(h => (
+                        <span key={h} className="bg-muted px-2 py-1 rounded-lg font-bold text-xs border border-current/10 uppercase">{h}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="font-black uppercase opacity-40 text-[10px]">Professional Certification Gallery</p>
+                    {certificates && certificates.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {certificates.map((cert, i) => (
+                          <div key={i} className="rounded-xl border-2 border-dashed border-current/20 p-2 bg-muted/30 group overflow-hidden">
+                            <img 
+                              src={cert} 
+                              alt={`Certificate ${i + 1}`} 
+                              className="w-full h-auto rounded-lg shadow-sm grayscale hover:grayscale-0 transition-all duration-500 cursor-zoom-in"
+                              referrerPolicy="no-referrer"
+                              onClick={() => window.open(cert, '_blank')}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border-2 border-dashed border-current/20 p-8 bg-muted/30 text-center">
+                        <Award className="w-12 h-12 mx-auto opacity-20 mb-2" />
+                        <p className="text-[10px] font-bold uppercase opacity-40">No certificates uploaded yet</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -537,7 +752,7 @@ export default function App() {
 
   const [user, setUser] = useState<UserProfile>({
     name: 'Student',
-    trade: 'Automobile',
+    trade: 'Automotive Mechanics',
     theme: 'earth',
     totalHours: 0,
     badges: ['beginner'],
@@ -554,6 +769,19 @@ export default function App() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [sortConfig, setSortConfig] = useState<{ field: 'date' | 'hours'; order: 'asc' | 'desc' }>({ field: 'date', order: 'desc' });
+
+  const sortedEntries = useMemo(() => {
+    return [...entries].sort((a, b) => {
+      if (sortConfig.field === 'date') {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return sortConfig.order === 'asc' ? dateA - dateB : dateB - dateA;
+      } else {
+        return sortConfig.order === 'asc' ? a.hours - b.hours : b.hours - a.hours;
+      }
+    });
+  }, [entries, sortConfig]);
 
   // 1. Listen for Auth Changes
   useEffect(() => {
@@ -566,6 +794,7 @@ export default function App() {
 
   // 2. Load Global Branding
   useEffect(() => {
+    const path = 'config/branding';
     const unsubscribe = onSnapshot(doc(db, 'config', 'branding'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -575,9 +804,12 @@ export default function App() {
           customLogo: data.customLogo,
           customDevImage: data.customDevImage,
           customDevName: data.customDevName,
-          customPrimaryColor: data.customPrimaryColor
+          customPrimaryColor: data.customPrimaryColor,
+          certificates: data.certificates
         }));
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
     });
     return () => unsubscribe();
   }, []);
@@ -600,7 +832,7 @@ export default function App() {
         const initialProfile: UserProfile = {
           name: fbUser.displayName || 'Student',
           email: fbUser.email || '',
-          trade: 'Automobile',
+          trade: 'Automotive Mechanics',
           theme: 'earth',
           totalHours: 0,
           badges: ['beginner'],
@@ -611,25 +843,31 @@ export default function App() {
           year: '2026',
           isAdmin: fbUser.email === '1to3to7@gmail.com'
         };
-        setDoc(doc(db, 'users', fbUser.uid), initialProfile);
+        setDoc(doc(db, 'users', fbUser.uid), initialProfile)
+          .catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${fbUser.uid}`));
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `users/${fbUser.uid}`);
     });
 
     // Entries listener
+    const entriesPath = user.isAdmin ? 'admin_chamber' : `users/${fbUser.uid}/entries`;
     const entriesQuery = query(
-      collection(db, 'users', fbUser.uid, 'entries'),
+      collection(db, entriesPath),
       orderBy('date', 'desc')
     );
     const entriesUnsub = onSnapshot(entriesQuery, (snapshot) => {
       const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as LogEntry));
       setEntries(docs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, entriesPath);
     });
 
     return () => {
       profileUnsub();
       entriesUnsub();
     };
-  }, [fbUser]);
+  }, [fbUser, user.isAdmin]);
 
   // Apply custom primary color
   useEffect(() => {
@@ -661,10 +899,11 @@ export default function App() {
   // Sync Profile Changes (Theme, Trade, etc.)
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!fbUser) return;
+    const path = `users/${fbUser.uid}`;
     try {
       await setDoc(doc(db, 'users', fbUser.uid), { ...user, ...updates }, { merge: true });
     } catch (error) {
-      console.error("Error updating profile:", error);
+      handleFirestoreError(error, OperationType.WRITE, path);
     }
   };
 
@@ -674,19 +913,50 @@ export default function App() {
       alert("Please sign in to save your entries.");
       return;
     }
+    
+    // Determine path based on admin status
+    const isSystemAdmin = user.isAdmin;
+    const path = isSystemAdmin ? 'admin_chamber' : `users/${fbUser.uid}/entries`;
+    
     try {
-      await addDoc(collection(db, 'users', fbUser.uid, 'entries'), entry);
+      if (isSystemAdmin) {
+        // Save to Admin Chamber
+        await addDoc(collection(db, 'admin_chamber'), {
+          ...entry,
+          authorName: user.name,
+          authorEmail: user.email,
+          status: 'verified' // Admins are auto-verified
+        });
+      } else {
+        // Save to User's entries
+        await addDoc(collection(db, 'users', fbUser.uid, 'entries'), entry);
+      }
+      
+      // Show confirmation
+      alert(`Logbook entry saved successfully to ${isSystemAdmin ? 'Admin Chamber' : 'your logbook'}.`);
     } catch (error) {
-      console.error("Error adding entry:", error);
+      handleFirestoreError(error, OperationType.CREATE, path);
+      alert("Failed to save entry. Please check your connection.");
     }
   };
 
   const deleteEntry = async (entryId: string) => {
     if (!fbUser) return;
+    
+    const isSystemAdmin = user.isAdmin;
+    // Admins can delete from admin_chamber, users from their own
+    const path = isSystemAdmin ? `admin_chamber/${entryId}` : `users/${fbUser.uid}/entries/${entryId}`;
+    
     try {
-      await deleteDoc(doc(db, 'users', fbUser.uid, 'entries', entryId));
+      if (isSystemAdmin) {
+        await deleteDoc(doc(db, 'admin_chamber', entryId));
+      } else {
+        await deleteDoc(doc(db, 'users', fbUser.uid, 'entries', entryId));
+      }
+      alert("Entry deleted successfully.");
     } catch (error) {
-      console.error("Error deleting entry:", error);
+      handleFirestoreError(error, OperationType.DELETE, path);
+      alert("Delete failed. You may not have permission.");
     }
   };
 
@@ -735,71 +1005,102 @@ export default function App() {
   // PDF Export
   const exportPDF = () => {
     const doc = new jsPDF() as any;
+    const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Header
-    doc.setFillColor(154, 52, 18); // Primary color
-    doc.rect(0, 0, 210, 40, 'F');
+    // Command Prompt Style Header
+    doc.setFillColor(12, 10, 9); // Deep dark background
+    doc.rect(0, 0, pageWidth, 45, 'F');
     
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.text("RWANDA TVET LOGBOOK FORM", 105, 20, { align: 'center' });
-    doc.setFontSize(12);
-    doc.text("Building Skills, Skilled Hands, Recording Progress. Rwandan Pride.", 105, 30, { align: 'center' });
+    // Terminal Bar
+    doc.setFillColor(41, 37, 36);
+    doc.rect(0, 0, pageWidth, 8, 'F');
+    doc.setFillColor(239, 68, 68); doc.circle(5, 4, 1.5, 'F');
+    doc.setFillColor(251, 191, 36); doc.circle(10, 4, 1.5, 'F');
+    doc.setFillColor(34, 197, 94); doc.circle(15, 4, 1.5, 'F');
     
-    // Student Info
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.text(`Student: ${user.name}`, 14, 50);
+    doc.setTextColor(34, 197, 94); // Terminal Green
+    doc.setFont("courier", "bold");
+    doc.setFontSize(20);
+    doc.text("> RWANDA TVET LOGBOOK SYSTEM", 14, 25);
+    
     doc.setFontSize(10);
-    doc.text(`Trade: ${user.trade}`, 14, 58);
-    doc.text(`School: ${user.school || 'N/A'}`, 14, 64);
-    doc.text(`Level: ${user.level || 'N/A'} | Year: ${user.year || 'N/A'}`, 14, 70);
-    doc.text(`ID: ${user.idNumber || 'N/A'}`, 14, 76);
-    doc.text(`Total Hours: ${user.totalHours.toFixed(1)}h`, 160, 50);
+    doc.setTextColor(168, 162, 158);
+    doc.text(`[SYSTEM_STATUS]: ONLINE | [FOUNDER]: BIZIMANA FILS`, 14, 35);
+    doc.text(`[TIMESTAMP]: ${new Date().toLocaleString()}`, 14, 40);
+    
+    // Student Info Section
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(`STUDENT_PROFILE: ${user.name.toUpperCase()}`, 14, 60);
+    
+    doc.setDrawColor(154, 52, 18);
+    doc.setLineWidth(0.5);
+    doc.line(14, 62, 100, 62);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const infoY = 70;
+    doc.text(`TRADE: ${user.trade}`, 14, infoY);
+    doc.text(`SCHOOL: ${user.school || 'N/A'}`, 14, infoY + 6);
+    doc.text(`LEVEL: ${user.level || 'N/A'} | YEAR: ${user.year || 'N/A'}`, 14, infoY + 12);
+    doc.text(`ID_NUM: ${user.idNumber || 'N/A'}`, 14, infoY + 18);
+    
+    doc.setFont("helvetica", "bold");
+    doc.text(`TOTAL_HOURS: ${user.totalHours.toFixed(1)}h`, 150, infoY);
+    doc.text(`BADGES: ${user.badges.join(', ')}`, 150, infoY + 6);
 
     const tableData = entries.map(e => [
       e.date,
       e.task,
-      e.hours,
-      `${e.tools.join(', ')}\n\nMaterials:\n${e.materials?.join(', ') || 'N/A'}`,
-      e.steps.join('\n')
+      `${e.hours}h`,
+      `RESOURCES:\nTOOLS: ${e.tools.join(', ')}\n\nMATERIALS: ${e.materials?.join(', ') || 'N/A'}`,
+      `TECHNICAL_STEPS:\n${e.steps.map((s, i) => `${i+1}. ${s}`).join('\n')}`
     ]);
 
     autoTable(doc, {
-      startY: 85,
-      head: [['Date', 'Task', 'Hours', 'Tools', 'Steps']],
+      startY: 95,
+      head: [['DATE', 'TASK_PERFORMED', 'HRS', 'RESOURCES', 'TECHNICAL_STEPS']],
       body: tableData,
       theme: 'grid',
-      headStyles: { fillColor: [154, 52, 18] },
-      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { 
+        fillColor: [12, 10, 9], 
+        textColor: [34, 197, 94],
+        font: 'courier',
+        fontStyle: 'bold'
+      },
+      styles: { 
+        fontSize: 8, 
+        cellPadding: 3,
+        valign: 'top'
+      },
       columnStyles: {
-        4: { cellWidth: 60 }
+        0: { cellWidth: 20 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 12 },
+        3: { cellWidth: 50 },
+        4: { cellWidth: 70 }
+      },
+      didDrawPage: (data) => {
+        // Footer on each page
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Page ${data.pageNumber} of ${doc.internal.getNumberOfPages()}`, pageWidth - 30, doc.internal.pageSize.getHeight() - 10);
+        doc.text(`Generated by ${user.appName || 'RWANDA TVET LOGBOOK FORM'} - Built by BIZIMANA FILS`, 14, doc.internal.pageSize.getHeight() - 10);
       }
     });
 
-    // Footer
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.text(`Generated by ${user.appName || 'RWANDA TVET LOGBOOK FORM'} - Developer: ${user.customDevName || DEVELOPER_INFO.name}`, 105, 285, { align: 'center' });
-    }
-
-    doc.save(`TVET_Logbook_${user.name}.pdf`);
+    doc.save(`TVET_Logbook_${user.name.replace(/\s+/g, '_')}.pdf`);
   };
 
   return (
     <div className="min-h-screen">
+      {user.natureMode && <NatureBackground />}
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b-2 border-current px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-50 bg-[var(--background)]/80 backdrop-blur-md border-b-2 border-current px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center text-white font-black shadow-sm overflow-hidden">
-            <img 
-              src={user.customLogo || "https://picsum.photos/seed/tvetlogo/100/100"} 
-              alt="Logo" 
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
+            <Logo className="w-full h-full p-1" showText={false} imageUrl={user.customLogo} />
           </div>
           <div className="hidden sm:block">
             <h1 className="font-black text-lg leading-none uppercase tracking-tighter">{user.appName || "RWANDA TVET"}</h1>
@@ -828,7 +1129,7 @@ export default function App() {
               onClick={() => setIsAdminSignInOpen(true)}
               className="bead-button bg-muted text-current py-1.5 px-2 sm:px-3 text-[9px] sm:text-[10px] border-2 border-current hover:bg-primary hover:text-white transition-all whitespace-nowrap"
             >
-              <span className="hidden xs:inline">BIZIMANA FILS</span> ADMIN
+              <span className="hidden xs:inline">{user.customDevName || DEVELOPER_INFO.name}</span> ADMIN
             </button>
           )}
           <div className="bg-secondary/30 px-2 sm:px-3 py-1 rounded-full border border-current flex items-center gap-1 sm:gap-2">
@@ -870,13 +1171,8 @@ export default function App() {
               <div className="bead-card p-8 relative overflow-hidden bg-primary text-white">
                 <div className="relative z-10">
                   <div className="flex items-center gap-4 mb-6">
-                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-primary shadow-lg overflow-hidden">
-                      <img 
-                        src={user.customLogo || "https://picsum.photos/seed/tvetlogo/200/200"} 
-                        alt="Logo" 
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
+                    <div className="w-16 h-16 bg-[var(--card-bg)] rounded-2xl flex items-center justify-center text-primary shadow-lg overflow-hidden">
+                      <Logo className="w-full h-full p-1" showText={false} imageUrl={user.customLogo} />
                     </div>
                     <div>
                       <h2 className="text-3xl font-black uppercase tracking-tighter leading-none">{user.appName || "RWANDA TVET"}</h2>
@@ -900,7 +1196,7 @@ export default function App() {
                     </button>
                     <button 
                       onClick={() => setView('about')}
-                      className="bead-button bg-white text-primary flex items-center gap-2"
+                      className="bead-button bg-[var(--card-bg)] text-primary flex items-center gap-2"
                     >
                       <BookOpen className="w-5 h-5" /> Research Courses
                     </button>
@@ -1017,10 +1313,40 @@ export default function App() {
               />
 
               <div className="space-y-4">
-                <h3 className="font-black uppercase px-2">All Entries ({entries.length})</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
+                  <h3 className="font-black uppercase">All Entries ({entries.length})</h3>
+                  
+                  <div className="flex items-center gap-2">
+                    <div className="flex bg-muted rounded-lg p-1 border border-current/10">
+                      <button 
+                        onClick={() => setSortConfig(prev => ({ field: 'date', order: prev.field === 'date' ? (prev.order === 'asc' ? 'desc' : 'asc') : 'desc' }))}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase transition-all",
+                          sortConfig.field === 'date' ? "bg-primary text-white" : "hover:bg-primary/10"
+                        )}
+                      >
+                        <CalendarIcon className="w-3 h-3" />
+                        {t('sort_date')}
+                        {sortConfig.field === 'date' && (sortConfig.order === 'asc' ? <SortAsc className="w-3 h-3" /> : <SortDesc className="w-3 h-3" />)}
+                      </button>
+                      <button 
+                        onClick={() => setSortConfig(prev => ({ field: 'hours', order: prev.field === 'hours' ? (prev.order === 'asc' ? 'desc' : 'asc') : 'desc' }))}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-black uppercase transition-all",
+                          sortConfig.field === 'hours' ? "bg-primary text-white" : "hover:bg-primary/10"
+                        )}
+                      >
+                        <Clock className="w-3 h-3" />
+                        {t('sort_hours')}
+                        {sortConfig.field === 'hours' && (sortConfig.order === 'asc' ? <SortAsc className="w-3 h-3" /> : <SortDesc className="w-3 h-3" />)}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid gap-4">
-                  {entries.map(entry => (
-                    <div key={entry.id} className="bead-card p-6 relative">
+                  {sortedEntries.map(entry => (
+                    <div key={entry.id} className="bead-card p-6 relative group">
                       <div className="flex justify-between items-start mb-4">
                         <div>
                           <span className="text-xs font-black uppercase tracking-widest bg-muted px-2 py-1 rounded border border-current mb-2 inline-block">
@@ -1049,12 +1375,29 @@ export default function App() {
                           </ul>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => deleteEntry(entry.id)}
-                        className="absolute top-4 right-4 p-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => {
+                            const text = t('share_text', { task: entry.task, hours: entry.hours });
+                            if (navigator.share) {
+                              navigator.share({ title: 'TVET Logbook', text }).catch(() => {});
+                            } else {
+                              navigator.clipboard.writeText(text);
+                              alert("Copied to clipboard!");
+                            }
+                          }}
+                          className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors"
+                          title={t('share')}
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => deleteEntry(entry.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                       <CornerBeads />
                     </div>
                   ))}
@@ -1299,20 +1642,51 @@ export default function App() {
 
                       <div className="space-y-4">
                         <label className="text-xs font-black uppercase opacity-60 px-1 flex items-center gap-2">
+                          <ImageIcon className="w-3 h-3" /> {t('nature_mode')}
+                        </label>
+                        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-2xl border-2 border-current/10">
+                          <div>
+                            <p className="font-black uppercase text-[10px]">{t('nature_mode')}</p>
+                            <p className="text-[9px] opacity-60">{t('nature_mode_desc')}</p>
+                          </div>
+                          <button 
+                            onClick={() => setUser(prev => ({ ...prev, natureMode: !prev.natureMode }))}
+                            className={cn(
+                              "w-12 h-6 rounded-full relative transition-colors duration-300",
+                              user.natureMode ? "bg-primary" : "bg-muted border-2 border-current/10"
+                            )}
+                          >
+                            <motion.div 
+                              animate={{ x: user.natureMode ? 24 : 2 }}
+                              className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <label className="text-xs font-black uppercase opacity-60 px-1 flex items-center gap-2">
                           <Settings className="w-3 h-3" /> Visual Theme
                         </label>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                           {THEMES.map(t => (
                             <button 
                               key={t.id}
                               onClick={() => updateProfile({ theme: t.id })}
                               className={cn(
-                                "bead-card p-4 flex flex-col items-center gap-2 transition-all",
-                                user.theme === t.id ? "ring-4 ring-primary ring-offset-2" : "hover:scale-105"
+                                "bead-card p-3 flex flex-col items-center gap-2 transition-all relative group",
+                                user.theme === t.id ? "ring-4 ring-primary ring-offset-2 scale-105" : "hover:scale-105 opacity-80 hover:opacity-100"
                               )}
                             >
-                              <div className={cn("w-12 h-12 rounded-full border-2 border-black", t.colors)} />
-                              <span className="text-xs font-black uppercase">{t.name}</span>
+                              <div className={cn("w-full aspect-video rounded-lg border-2 border-black flex items-center justify-center overflow-hidden", t.colors)}>
+                                {t.id === 'auto' ? <Sparkles className="w-6 h-6 animate-pulse" /> : <div className="w-full h-full imigongo-pattern opacity-20" />}
+                              </div>
+                              <span className="text-[10px] font-black uppercase tracking-tighter">{t.name}</span>
+                              {user.theme === t.id && (
+                                <div className="absolute -top-2 -right-2 bg-primary text-white p-1 rounded-full shadow-lg">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                </div>
+                              )}
                             </button>
                           ))}
                         </div>
@@ -1402,11 +1776,40 @@ export default function App() {
                 <div className="pt-8 border-t-2 border-current">
                   <h4 className="font-black uppercase mb-4">Developer</h4>
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white text-2xl font-black">BF</div>
-                    <div>
-                      <p className="font-black uppercase text-xl">Bizimana Fils</p>
-                      <p className="text-sm font-bold opacity-60">Rwanda • 2026</p>
+                    <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white text-2xl font-black">
+                      {user.customDevImage ? <img src={user.customDevImage} className="w-full h-full object-cover rounded-2xl" /> : "BMB"}
                     </div>
+                    <div>
+                      <p className="font-black uppercase text-xl">{user.customDevName || DEVELOPER_INFO.name}</p>
+                      <p className="text-sm font-bold opacity-60">Muhanga, Rwanda • 2026</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-8 border-t-2 border-current">
+                  <h4 className="font-black uppercase mb-6 flex items-center gap-2">
+                    <BookOpen className="w-5 h-5" /> TVET Course Support
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {TRADES_WITH_ICONS.map(trade => (
+                      <div key={trade.id} className="bead-card p-4 hover:bg-muted transition-colors">
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="text-2xl">{trade.icon}</span>
+                          <span className="font-black uppercase text-xs tracking-tight">{trade.id}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase opacity-40">Practical Tasks Example:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {TRADE_KNOWLEDGE[trade.id]?.tasks.slice(0, 5).map(task => (
+                              <span key={task} className="text-[9px] bg-secondary/20 px-1.5 py-0.5 rounded border border-current/10 font-bold">
+                                {task}
+                              </span>
+                            ))}
+                            <span className="text-[9px] opacity-40 font-bold">...and 35+ more</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <CornerBeads />
@@ -1417,7 +1820,7 @@ export default function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-current px-2 py-3 z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-[var(--background)] border-t-4 border-current px-2 py-3 z-50">
         <div className="max-w-4xl mx-auto flex justify-around items-center">
           <button 
             onClick={() => setIsDevModalOpen(true)}
@@ -1434,14 +1837,27 @@ export default function App() {
         </div>
       </nav>
 
-      <DeveloperModal isOpen={isDevModalOpen} onClose={() => setIsDevModalOpen(false)} customImage={user.customDevImage} customName={user.customDevName} />
-      <AdminSignInModal isOpen={isAdminSignInOpen} onClose={() => setIsAdminSignInOpen(false)} onLogin={() => setUser(prev => ({ ...prev, isAdmin: true }))} customDevName={user.customDevName} />
+      <DeveloperModal 
+        isOpen={isDevModalOpen} 
+        onClose={() => setIsDevModalOpen(false)} 
+        customImage={user.customDevImage} 
+        customName={user.customDevName}
+        certificates={user.certificates}
+      />
+      <AdminSignInModal 
+        isOpen={isAdminSignInOpen} 
+        onClose={() => setIsAdminSignInOpen(false)} 
+        onLogin={() => setUser(prev => ({ ...prev, isAdmin: true }))} 
+        customDevName={user.customDevName}
+        customLogo={user.customLogo}
+      />
       <AdminControlEngine isOpen={isAdminSettingsOpen} onClose={() => setIsAdminSettingsOpen(false)} user={user} setUser={setUser} />
 
       {/* AI Assistant Floating Button */}
       <button 
         onClick={() => setIsAssistantOpen(true)}
         className="fixed bottom-24 right-6 w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-40 border-2 border-white"
+        title={t('ai_assistant_tooltip')}
       >
         <MessageSquare className="w-6 h-6" />
       </button>
@@ -1456,7 +1872,8 @@ export default function App() {
           totalHours: user.totalHours,
           school: user.school,
           level: user.level,
-          year: user.year
+          year: user.year,
+          language: i18n.language
         }}
       />
     </div>
@@ -1492,7 +1909,7 @@ function AIAssistant({ isOpen, onClose, userContext }: { isOpen: boolean; onClos
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
         >
-          <div className="bead-card w-full max-w-md bg-white overflow-hidden flex flex-col max-h-[80vh]">
+          <div className="bead-card w-full max-w-md bg-[var(--card-bg)] overflow-hidden flex flex-col max-h-[80vh]">
             <div className="bg-primary p-4 text-white flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5" />
@@ -1574,8 +1991,10 @@ function LogForm({ trade, onSubmit, initialHours }: { trade: Trade; onSubmit: (e
     } else {
       // Fallback
       const knowledge = TRADE_KNOWLEDGE[trade];
-      setTools(knowledge.tools);
-      setSteps(knowledge.steps);
+      if (knowledge) {
+        setTools(knowledge.tools);
+        setSteps(knowledge.steps);
+      }
       setMaterials(['Standard workshop materials']);
     }
     setIsAiLoading(false);
@@ -1592,7 +2011,7 @@ function LogForm({ trade, onSubmit, initialHours }: { trade: Trade; onSubmit: (e
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!task || hours <= 0) return;
+    if (!task || isNaN(hours) || hours <= 0) return;
     
     onSubmit({
       id: Date.now().toString(),
@@ -1630,7 +2049,7 @@ function LogForm({ trade, onSubmit, initialHours }: { trade: Trade; onSubmit: (e
             <input 
               type="number" 
               step="0.5"
-              value={hours}
+              value={isNaN(hours) ? '' : hours}
               onChange={(e) => setHours(parseFloat(e.target.value))}
               className="w-full bg-muted border-2 border-current rounded-xl px-4 py-3 font-bold focus:outline-none focus:ring-2 ring-primary"
               required
@@ -1651,7 +2070,7 @@ function LogForm({ trade, onSubmit, initialHours }: { trade: Trade; onSubmit: (e
         
         {/* Horizontal Task Carousel */}
         <div className="flex overflow-x-auto gap-3 pb-4 no-scrollbar -mx-2 px-2 snap-x">
-          {TRADE_KNOWLEDGE[trade].tasks.map(t => (
+          {TRADE_KNOWLEDGE[trade]?.tasks.map(t => (
             <button 
               key={t}
               type="button"

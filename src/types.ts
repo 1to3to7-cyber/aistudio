@@ -1,21 +1,31 @@
 export type Theme = 'earth' | 'royal' | 'sunset' | 'agaseke' | 'kivu' | 'umushanana' | 'auto';
 
 export type Trade = 
-  | 'Automobile' 
+  | 'Automotive Mechanics'
   | 'Culinary Arts' 
   | 'Carpentry' 
   | 'Tailoring' 
   | 'Masonry' 
   | 'Plumbing'
-  | 'Electricity'
+  | 'Electrical Installation'
   | 'Welding'
   | 'Hospitality'
   | 'Tourism'
   | 'ICT - Software Development'
-  | 'ICT - Networking'
+  | 'ICT - Computer Systems'
   | 'Hairdressing'
   | 'Graphic Design'
-  | 'Food Processing';
+  | 'Food Processing'
+  | 'Solar Energy'
+  | 'Telecommunication'
+  | 'Agriculture & Crop Production'
+  | 'Animal Health'
+  | 'Wood Technology'
+  | 'Leather Technology'
+  | 'Water and Irrigation'
+  | 'Mobile Phone Repair'
+  | 'Computer Application'
+  | 'Entrepreneurship';
 
 export interface LogEntry {
   id: string;
@@ -47,4 +57,6 @@ export interface UserProfile {
   customDevImage?: string;
   customDevName?: string;
   customPrimaryColor?: string;
+  certificates?: string[];
+  natureMode?: boolean;
 }

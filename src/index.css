@@ -29,6 +29,7 @@
     --muted: #f5f5f4;
     --muted-foreground: #57534e;
     --border: #e7e5e4;
+    --card-bg: #ffffff;
     --radius: 0.75rem;
     --bead-shadow: 4px 4px 0px rgba(0, 0, 0, 0.1);
   }
@@ -39,6 +40,7 @@
     --primary: #9a3412; /* Terracotta */
     --secondary: #fde68a; /* Gold */
     --accent: #fbbf24;
+    --card-bg: #ffffff;
   }
 
   .theme-royal {
@@ -58,11 +60,15 @@
   }
 
   .theme-agaseke {
-    --background: #fcfaf7;
-    --foreground: #0c0a09;
-    --primary: #1c1917; /* Black */
-    --secondary: #f5f5f4; /* Cream */
-    --accent: #78716c;
+    --background: #0c0a09;
+    --foreground: #f5f5f4;
+    --primary: #f5f5f4; /* Cream/White */
+    --secondary: #44403c; /* Dark Grey */
+    --accent: #a8a29e;
+    --card-bg: #1c1917;
+    --muted: #292524;
+    --muted-foreground: #a8a29e;
+    --bead-shadow: 4px 4px 0px rgba(0, 0, 0, 0.4);
   }
 
   .theme-kivu {
@@ -88,8 +94,8 @@
   }
 
   .bead-card {
-    @apply bg-white rounded-2xl border-2 border-current shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] transition-all hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,0.15)];
-    background-image: radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0);
+    @apply bg-[var(--card-bg)] rounded-2xl border-2 border-current shadow-[var(--bead-shadow)] transition-all hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,0.15)];
+    background-image: radial-gradient(circle at 2px 2px, currentColor 0.5px, transparent 0);
     background-size: 24px 24px;
     background-position: -12px -12px;
   }
@@ -113,7 +119,7 @@
   }
 
   .corner-bead {
-    @apply absolute w-4 h-4 rounded-full border-2 border-current bg-white shadow-[inset_2px_2px_4px_rgba(0,0,0,0.2)];
+    @apply absolute w-4 h-4 rounded-full border-2 border-current bg-[var(--card-bg)] shadow-[inset_2px_2px_4px_rgba(0,0,0,0.2)];
   }
 
   .dev-button-pop {

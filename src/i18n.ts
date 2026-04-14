@@ -21,7 +21,7 @@ const resources = {
       "steps": "Key Steps",
       "magic_fill": "Magic Fill",
       "suggest": "Suggest",
-      "assistant_greeting": "Muraho! I am your Imigongo Assistant. How can I help you with your TVET logbook today?",
+      "assistant_greeting": "Hello 👋 / Muraho 👋 / Bonjour 👋\nI am your AI assistant. I can help you learn, solve problems, and build real systems.\nAsk your question in Kinyarwanda, English, or French.",
       "ask_placeholder": "Ask about the platform...",
       "total_hours": "Total Hours",
       "badges": "Badges",
@@ -39,7 +39,18 @@ const resources = {
       "email": "Email Address",
       "year": "Academic Year",
       "dev_info": "Developer Info",
-      "dev_name": "Bizimana Fils"
+      "dev_name": "BIZIMANA FILS",
+      "share": "Share",
+      "share_text": "Check out my TVET Logbook entry for {{task}}! I spent {{hours}}h on it. #RwandaTVET",
+      "no_entries": "No entries found for this period.",
+      "ai_assistant_tooltip": "AI Assistant: Ask for help with logbook entries, trade knowledge, or technical steps",
+      "sort_by": "Sort By",
+      "sort_date": "Date",
+      "sort_hours": "Hours",
+      "sort_asc": "Ascending",
+      "sort_desc": "Descending",
+      "nature_mode": "Nature Mode",
+      "nature_mode_desc": "Enable Rwanda nature background slideshow"
     }
   },
   rw: {
@@ -60,7 +71,7 @@ const resources = {
       "steps": "Intambwe z'akazi",
       "magic_fill": "Ubufasha bwa AI",
       "suggest": "Ehura",
-      "assistant_greeting": "Muraho! Ndi umufasha wawe wa Imigongo. Ngufashe iki uyu munsi?",
+      "assistant_greeting": "Hello 👋 / Muraho 👋 / Bonjour 👋\nNdi umufasha wawe wa AI. Ngufasha kwiga, gukemura ibibazo, no kubaka sisitemu zifatika.\nBaza ikibazo mu Kinyarwanda, Icyongereza, cyangwa Igifaransa.",
       "ask_placeholder": "Baza ikibazo...",
       "total_hours": "Amasaha yose",
       "badges": "Imidari",
@@ -78,7 +89,18 @@ const resources = {
       "email": "Imeri",
       "year": "Umwaka w'ishuri",
       "dev_info": "Ibyerekeye uwakoze porogaramu",
-      "dev_name": "Bizimana Fils"
+      "dev_name": "BIZIMANA FILS",
+      "share": "Sangiza",
+      "share_text": "Reba akazi nakoze muri TVET Logbook: {{task}}! Nakoresheje amasaha {{hours}}. #RwandaTVET",
+      "no_entries": "Nta mirimo yabonetse muri iki gihe.",
+      "ai_assistant_tooltip": "AI Assistant: Baza ubufasha ku mirimo, ubumenyi bw'umwuga, cyangwa intambwe za tekiniki",
+      "sort_by": "Guhitamo",
+      "sort_date": "Itariki",
+      "sort_hours": "Amasaha",
+      "sort_asc": "Bizamuka",
+      "sort_desc": "Bimanuka",
+      "nature_mode": "Isura y'Icyaro",
+      "nature_mode_desc": "Erekana amafoto y'ubwiza bw'u Rwanda"
     }
   },
   fr: {
@@ -99,7 +121,7 @@ const resources = {
       "steps": "Étapes clés",
       "magic_fill": "Remplissage IA",
       "suggest": "Suggérer",
-      "assistant_greeting": "Muraho ! Je suis votre assistant Imigongo. Comment puis-je vous aider aujourd'hui ?",
+      "assistant_greeting": "Hello 👋 / Muraho 👋 / Bonjour 👋\nJe suis votre assistant IA. Je peux vous aider à apprendre, à résoudre des problèmes et à construire des systèmes réels.\nPosez votre question en kinyarwanda, anglais ou français.",
       "ask_placeholder": "Posez une question...",
       "total_hours": "Heures totales",
       "badges": "Badges",
@@ -117,7 +139,18 @@ const resources = {
       "email": "Adresse e-mail",
       "year": "Année académique",
       "dev_info": "Infos développeur",
-      "dev_name": "Bizimana Fils"
+      "dev_name": "BIZIMANA FILS",
+      "share": "Partager",
+      "share_text": "Consultez mon entrée dans le carnet TVET pour {{task}} ! J'y ai passé {{hours}}h. #RwandaTVET",
+      "no_entries": "Aucune entrée trouvée pour cette période.",
+      "ai_assistant_tooltip": "Assistant IA : Demandez de l'aide pour les entrées du carnet, les connaissances du métier ou les étapes techniques",
+      "sort_by": "Trier par",
+      "sort_date": "Date",
+      "sort_hours": "Heures",
+      "sort_asc": "Croissant",
+      "sort_desc": "Décroissant",
+      "nature_mode": "Mode Nature",
+      "nature_mode_desc": "Activer le diaporama de la nature rwandaise"
     }
   }
 };

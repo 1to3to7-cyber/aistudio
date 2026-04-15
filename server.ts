@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
@@ -28,21 +30,71 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Initialize Firebase Admin (using environment variables or default)
-  // Note: In this environment, we might not have a service account key file,
-  // but we can often use default credentials if running in a GCP environment.
-  // For now, we'll assume the client-side config is sufficient or we'll mock the admin part
-  // if keys are missing, but the user asked for a "complete backend".
-  
+  // Trust proxy headers (Cloud Run/Nginx)
+  app.set('trust proxy', 1);
+
+  // Security & Middleware
   app.use(helmet({
-    contentSecurityPolicy: false, // Disable CSP for development/iframe compatibility
+    contentSecurityPolicy: false,
   }));
   app.use(cors());
   app.use(express.json());
+  app.use(morgan('dev')); // Logging
+
+  // Rate Limiting (Security)
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 100, // limit each IP to 100 requests per windowMs
+    message: "Too many requests from this IP, please try again after 15 minutes",
+    standardHeaders: 'draft-7', // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    // The following setting tells express-rate-limit to trust the proxy configuration from Express
+    validate: false, 
+    keyGenerator: (req) => req.ip as string,
+  });
+  app.use("/api/", limiter);
 
   // API Routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", message: "RWANDA TVET LOGBOOK API is running" });
+    res.json({ 
+      status: "ok", 
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      memory: process.memoryUsage()
+    });
+  });
+
+  // Backup Endpoint (Admin only logic should be here, but for now open)
+  app.get("/api/admin/backup", async (req, res, next) => {
+    try {
+      const configDoc = await admin.firestore().collection('config').doc('branding').get();
+      const usersSnapshot = await admin.firestore().collection('users').get();
+      
+      const backup = {
+        branding: configDoc.data(),
+        users_count: usersSnapshot.size,
+        timestamp: new Date().toISOString()
+      };
+      
+      res.json(backup);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Error Handling Middleware (Centralized Logging & Security)
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error(`[${new Date().toISOString()}] ERROR: ${err.message}`);
+    console.error(err.stack);
+
+    const statusCode = err.status || 500;
+    res.status(statusCode).json({
+      error: {
+        message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
+        status: statusCode,
+        timestamp: new Date().toISOString()
+      }
+    });
   });
 
   // User Profile API

@@ -1,32 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: users
-    // Document ID: {userId}
-    // Fields: name, trade, theme, avatar, totalHours, badges, school, level, idNumber, phone, email, year, isAdmin
-    //
-    // Collection: users/{userId}/entries
-    // Document ID: {entryId}
-    // Fields: date, task, hours, tools, materials, steps, status, timestamp
-    //
-    // Collection: admin_chamber
-    // Document ID: {entryId}
-    // Fields: date, task, hours, tools, materials, steps, status, timestamp, authorName, authorEmail
-    //
-    // Collection: config
-    // Document ID: branding
-    // Fields: appName, customLogo, customDevImage, customDevName, customPrimaryColor, certificates
-    //
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -37,54 +11,25 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
-         (request.auth.token.email == "1to3to7@gmail.com" && request.auth.token.email_verified == true));
+             (request.auth.token.email == "1to3to7@gmail.com" && request.auth.token.email_verified == true);
     }
-
-    function isValidUser(data) {
-      return data.keys().hasAll(['name', 'trade', 'email']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
-             (!('school' in data) || (data.school is string && data.school.size() < 100)) &&
-             (!('level' in data) || (data.level is string && data.level.size() < 20)) &&
-             (!('idNumber' in data) || (data.idNumber is string && data.idNumber.size() < 50)) &&
-             (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
-             (!('year' in data) || (data.year is string && data.year.size() < 10));
-    }
-
-    function isValidEntry(data) {
-      return data.keys().hasAll(['date', 'task', 'hours']) &&
-             data.task is string && data.task.size() > 0 && data.task.size() < 500 &&
-             data.hours is number && data.hours >= 0 && data.hours <= 24 &&
-             (!('tools' in data) || (data.tools is list && data.tools.size() < 50)) &&
-             (!('materials' in data) || (data.materials is list && data.materials.size() < 50)) &&
-             (!('steps' in data) || (data.steps is list && data.steps.size() < 100));
-    }
-
-    function isValidConfig(data) {
-      return (!('appName' in data) || (data.appName is string && data.appName.size() < 50)) &&
-             (!('customLogo' in data) || (data.customLogo is string && data.customLogo.size() < 1000)) &&
-             (!('customDevImage' in data) || (data.customDevImage is string && data.customDevImage.size() < 1000)) &&
-             (!('customDevName' in data) || (data.customDevName is string && data.customDevName.size() < 100)) &&
-             (!('customPrimaryColor' in data) || (data.customPrimaryColor is string && data.customPrimaryColor.matches("^#[0-9a-fA-F]{6}$"))) &&
-             (!('certificates' in data) || (data.certificates is list && data.certificates.size() < 20));
-    }
-
-    // ===============================================================
-    // Rules
-    // ===============================================================
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
-                    (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false || isAdmin());
-      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
-                    (request.resource.data.isAdmin == resource.data.isAdmin || isAdmin());
+      allow write: if isOwner(userId) || isAdmin();
       
       match /entries/{entryId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow write: if isOwner(userId) && isValidEntry(request.resource.data);
+        allow read, write: if isOwner(userId) || isAdmin();
       }
+
+      match /progress/{progressId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     match /admin_chamber/{entryId} {
@@ -92,12 +37,12 @@ service cloud.firestore {
     }
 
     match /config/branding {
-      allow read: if true; // Publicly readable for branding
-      allow write: if isAdmin() && isValidConfig(request.resource.data);
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /login_faults/{faultId} {
-      allow create: if true; // Allow logging failed attempts
+      allow create: if true;
     }
   }
 }

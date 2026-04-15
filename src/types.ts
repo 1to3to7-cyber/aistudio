@@ -60,3 +60,23 @@ export interface UserProfile {
   certificates?: string[];
   natureMode?: boolean;
 }
+
+export interface Course {
+  id: string;
+  title: string;
+  description: string;
+  videoUrl: string;
+  videoType: 'youtube' | 'local';
+  thumbnail?: string;
+  trade: Trade | 'All';
+  createdAt: number;
+}
+
+export interface UserProgress {
+  id: string;
+  courseId: string;
+  userId: string;
+  status: 'started' | 'completed';
+  lastWatched: number;
+  progress: number; // 0 to 100
+}

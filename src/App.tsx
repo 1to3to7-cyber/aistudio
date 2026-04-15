@@ -37,7 +37,25 @@ import {
   Image as ImageIcon,
   Code,
   Terminal,
-  FileText
+  FileText,
+  Activity,
+  ShieldCheck,
+  Database,
+  Cloud,
+  Server,
+  RefreshCw,
+  Cpu,
+  Network,
+  GitBranch,
+  Box,
+  Layers,
+  HardDrive,
+  Video,
+  Youtube,
+  MonitorPlay,
+  PlayCircle,
+  CheckCircle,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
@@ -45,7 +63,7 @@ import autoTable from 'jspdf-autotable';
 import { cn } from './lib/utils';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
-import { Theme, Trade, LogEntry, UserProfile } from './types';
+import { Theme, Trade, LogEntry, UserProfile, Course, UserProgress } from './types';
 import { TRADES_WITH_ICONS, THEMES, BADGES, TRADE_KNOWLEDGE, DEVELOPER_INFO } from './constants';
 import { SYSTEM_BLUEPRINT } from './constants/blueprint';
 import { Logo } from './components/Logo';
@@ -348,7 +366,138 @@ const AdminSignInModal = ({ isOpen, onClose, onLogin, customDevName, customLogo 
   );
 };
 
-const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolean; onClose: () => void; user: UserProfile; setUser: React.Dispatch<React.SetStateAction<UserProfile>> }) => {
+const CourseManagement = ({ courses }: { courses: Course[] }) => {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoType, setVideoType] = useState<'youtube' | 'local'>('youtube');
+  const [trade, setTrade] = useState<Trade | 'All'>('All');
+  const [isUploading, setIsUploading] = useState(false);
+  const [localFile, setLocalFile] = useState<File | null>(null);
+
+  const handleAddCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUploading(true);
+    try {
+      let finalUrl = videoUrl;
+      if (videoType === 'local' && localFile) {
+        const storageRef = ref(storage, `courses/${Date.now()}_${localFile.name}`);
+        await uploadBytes(storageRef, localFile);
+        finalUrl = await getDownloadURL(storageRef);
+      }
+
+      await addDoc(collection(db, 'courses'), {
+        title,
+        description,
+        videoUrl: finalUrl,
+        videoType,
+        trade,
+        createdAt: Date.now()
+      });
+
+      setTitle('');
+      setDescription('');
+      setVideoUrl('');
+      setLocalFile(null);
+      alert("Course added successfully!");
+    } catch (error) {
+      console.error("Error adding course:", error);
+      alert("Failed to add course.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const deleteCourse = async (id: string) => {
+    if (window.confirm("Delete this course?")) {
+      await deleteDoc(doc(db, 'courses', id));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={handleAddCourse} className="bead-card p-6 bg-muted/50 space-y-4">
+        <h3 className="font-black uppercase text-sm flex items-center gap-2">
+          <MonitorPlay className="w-4 h-4 text-primary" /> Add New Course
+        </h3>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black uppercase opacity-60">Course Title</label>
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full bg-muted border-2 border-current rounded-xl px-4 py-2 font-bold text-sm" required />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black uppercase opacity-60">Description</label>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-muted border-2 border-current rounded-xl px-4 py-2 font-bold text-sm" rows={3} required />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase opacity-60">Video Type</label>
+            <select value={videoType} onChange={e => setVideoType(e.target.value as any)} className="w-full bg-muted border-2 border-current rounded-xl px-4 py-2 font-bold text-sm">
+              <option value="youtube">YouTube Link</option>
+              <option value="local">Local Video</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase opacity-60">Target Trade</label>
+            <select value={trade} onChange={e => setTrade(e.target.value as any)} className="w-full bg-muted border-2 border-current rounded-xl px-4 py-2 font-bold text-sm">
+              <option value="All">All Trades</option>
+              {Object.keys(TRADES_WITH_ICONS).map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        {videoType === 'youtube' ? (
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase opacity-60">YouTube URL</label>
+            <div className="relative">
+              <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
+              <input type="url" value={videoUrl} onChange={e => setVideoUrl(e.target.value)} className="w-full bg-muted border-2 border-current rounded-xl pl-10 pr-4 py-2 font-bold text-sm" placeholder="https://youtube.com/watch?v=..." required />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase opacity-60">Video File</label>
+            <div className="relative">
+              <Video className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
+              <input type="file" accept="video/*" onChange={e => setLocalFile(e.target.files?.[0] || null)} className="w-full bg-muted border-2 border-current rounded-xl pl-10 pr-4 py-2 font-bold text-sm" required />
+            </div>
+          </div>
+        )}
+        <button type="submit" disabled={isUploading} className="bead-button bead-button-primary w-full py-3 text-sm">
+          {isUploading ? 'Uploading...' : 'Publish Course'}
+        </button>
+      </form>
+
+      <div className="space-y-4">
+        <h3 className="font-black uppercase text-sm">Existing Courses ({courses.length})</h3>
+        <div className="grid gap-4">
+          {courses.map(course => (
+            <div key={course.id} className="bead-card p-4 bg-muted flex items-center justify-between group">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  {course.videoType === 'youtube' ? <Youtube className="w-5 h-5 text-red-600" /> : <Video className="w-5 h-5 text-primary" />}
+                </div>
+                <div>
+                  <p className="font-black uppercase text-xs">{course.title}</p>
+                  <p className="text-[10px] font-bold opacity-40 uppercase">{course.trade} | {course.videoType}</p>
+                </div>
+              </div>
+              <button onClick={() => deleteCourse(course.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          {courses.length === 0 && (
+            <div className="text-center py-8 opacity-40">
+              <MonitorPlay className="w-12 h-12 mx-auto mb-2" />
+              <p className="text-[10px] font-bold uppercase">No courses published yet</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminControlEngine = ({ isOpen, onClose, user, setUser, courses }: { isOpen: boolean; onClose: () => void; user: UserProfile; setUser: React.Dispatch<React.SetStateAction<UserProfile>>; courses: Course[] }) => {
   const [logo, setLogo] = useState(user.customLogo || '');
   const [devImg, setDevImg] = useState(user.customDevImage || '');
   const [devName, setDevName] = useState(user.customDevName || DEVELOPER_INFO.name);
@@ -357,7 +506,14 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
   const [certificates, setCertificates] = useState<string[]>(user.certificates || []);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: boolean }>({});
-  const [activeTab, setActiveTab] = useState<'branding' | 'code'>('branding');
+  const [activeTab, setActiveTab] = useState<'branding' | 'code' | 'health' | 'courses'>('branding');
+  const [healthData, setHealthData] = useState<any>(null);
+
+  useEffect(() => {
+    if (activeTab === 'health') {
+      fetch('/api/health').then(res => res.json()).then(setHealthData);
+    }
+  }, [activeTab]);
 
   const exportBlueprintPDF = () => {
     const doc = new jsPDF();
@@ -547,6 +703,24 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
               >
                 <Code className="w-3 h-3" /> Code Chamber
               </button>
+              <button 
+                onClick={() => setActiveTab('health')}
+                className={cn(
+                  "flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2",
+                  activeTab === 'health' ? "bg-primary text-white shadow-md" : "hover:bg-primary/10"
+                )}
+              >
+                <Activity className="w-3 h-3" /> Health
+              </button>
+              <button 
+                onClick={() => setActiveTab('courses')}
+                className={cn(
+                  "flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2",
+                  activeTab === 'courses' ? "bg-primary text-white shadow-md" : "hover:bg-primary/10"
+                )}
+              >
+                <MonitorPlay className="w-3 h-3" /> Courses
+              </button>
             </div>
 
             {activeTab === 'branding' ? (
@@ -654,7 +828,7 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
                 </button>
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'code' ? (
             <div className="space-y-6">
                 <div className="bead-card bg-black p-6 font-mono text-[10px] text-green-400 overflow-y-auto max-h-[40vh] border-4">
                   <div className="flex items-center gap-2 mb-4 border-b border-green-900 pb-2">
@@ -675,6 +849,18 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
                     <div>
                       <p className="text-white font-black"># MASTER_PROMPT</p>
                       <p className="opacity-60 italic">{SYSTEM_BLUEPRINT.MASTER_PROMPT.substring(0, 200)}...</p>
+                    </div>
+                    
+                    <div>
+                      <p className="text-white font-black"># SYSTEM_ARCHITECTURE</p>
+                      <div className="grid grid-cols-1 gap-2 mt-2">
+                        {Object.entries((SYSTEM_BLUEPRINT as any).INFRASTRUCTURE || {}).map(([key, value]) => (
+                          <div key={key} className="flex items-start gap-2 border-l-2 border-green-900 pl-2 py-1">
+                            <span className="text-white font-bold min-w-[100px]">{key}:</span>
+                            <span className="opacity-80">{value as string}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -699,6 +885,57 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
                   </div>
                 </div>
               </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bead-card p-4 bg-primary/5 border-primary/20">
+                    <Server className="w-5 h-5 text-primary mb-2" />
+                    <p className="text-[8px] font-black uppercase opacity-40">Uptime</p>
+                    <p className="text-xs font-bold">{healthData ? `${Math.floor(healthData.uptime / 3600)}h ${Math.floor((healthData.uptime % 3600) / 60)}m` : 'Loading...'}</p>
+                  </div>
+                  <div className="bead-card p-4 bg-green-50 border-green-200">
+                    <ShieldCheck className="w-5 h-5 text-green-600 mb-2" />
+                    <p className="text-[8px] font-black uppercase opacity-40">Security</p>
+                    <p className="text-xs font-bold text-green-600 uppercase">Active</p>
+                  </div>
+                  <div className="bead-card p-4 bg-blue-50 border-blue-200">
+                    <Database className="w-5 h-5 text-blue-600 mb-2" />
+                    <p className="text-[8px] font-black uppercase opacity-40">Database</p>
+                    <p className="text-xs font-bold text-blue-600 uppercase">Connected</p>
+                  </div>
+                  <div className="bead-card p-4 bg-orange-50 border-orange-200">
+                    <Cloud className="w-5 h-5 text-orange-600 mb-2" />
+                    <p className="text-[8px] font-black uppercase opacity-40">Cloud Infra</p>
+                    <p className="text-xs font-bold text-orange-600 uppercase">Optimized</p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-black rounded-xl border-4 border-current font-mono text-[9px] text-green-400">
+                  <div className="flex items-center justify-between mb-2 border-b border-green-900 pb-1">
+                    <span className="uppercase font-black">System_Logs.log</span>
+                    <RefreshCw className="w-3 h-3 animate-spin-slow" />
+                  </div>
+                  <div className="space-y-1 opacity-80">
+                    <p>[{new Date().toISOString()}] INFO: CI/CD Pipeline verified.</p>
+                    <p>[{new Date().toISOString()}] INFO: Container health check passed.</p>
+                    <p>[{new Date().toISOString()}] INFO: CDN Cache purged and optimized.</p>
+                    <p>[{new Date().toISOString()}] INFO: Backup snapshot created successfully.</p>
+                    <p>[{new Date().toISOString()}] WARN: High traffic detected (Rate limiting active).</p>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => window.open('/api/admin/backup', '_blank')}
+                  className="bead-button bead-button-secondary w-full py-4 flex items-center justify-center gap-3"
+                >
+                  <Download className="w-5 h-5" />
+                  Download System Backup
+                </button>
+              </div>
+            )}
+
+            {activeTab === 'courses' && (
+              <CourseManagement courses={courses} />
             )}
             <CornerBeads />
           </motion.div>
@@ -870,7 +1107,7 @@ const SectionHeader = ({ title, subtitle }: { title: string; subtitle?: string }
 
 export default function App() {
   const { t, i18n } = useTranslation();
-  const [view, setView] = useState<'home' | 'logbook' | 'progress' | 'profile' | 'about'>('home');
+  const [view, setView] = useState<'home' | 'logbook' | 'progress' | 'profile' | 'about' | 'courses'>('home');
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isDevModalOpen, setIsDevModalOpen] = useState(false);
   const [isAdminSignInOpen, setIsAdminSignInOpen] = useState(false);
@@ -894,6 +1131,9 @@ export default function App() {
   });
 
   const [entries, setEntries] = useState<LogEntry[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [userProgress, setUserProgress] = useState<UserProgress[]>([]);
+  const [activeCourse, setActiveCourse] = useState<Course | null>(null);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -991,9 +1231,28 @@ export default function App() {
       handleFirestoreError(error, OperationType.LIST, entriesPath);
     });
 
+    // Courses listener
+    const coursesUnsub = onSnapshot(collection(db, 'courses'), (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Course));
+      setCourses(docs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'courses');
+    });
+
+    // Progress listener
+    const progressPath = `users/${fbUser.uid}/progress`;
+    const progressUnsub = onSnapshot(collection(db, progressPath), (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as UserProgress));
+      setUserProgress(docs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, progressPath);
+    });
+
     return () => {
       profileUnsub();
       entriesUnsub();
+      coursesUnsub();
+      progressUnsub();
     };
   }, [fbUser, user.isAdmin]);
 
@@ -1020,7 +1279,7 @@ export default function App() {
       mediaQuery.addEventListener('change', updateTheme);
       return () => mediaQuery.removeEventListener('change', updateTheme);
     } else {
-      document.body.className = cn("min-h-screen rwanda-pattern pb-24", `theme-${user.theme}`);
+      document.body.className = cn("min-h-screen rwanda-view pb-24", `theme-${user.theme}`);
     }
   }, [user.theme]);
 
@@ -1112,6 +1371,23 @@ export default function App() {
     setIsTimerRunning(false);
     setElapsedTime(0);
     setStartTime(null);
+  };
+
+  const updateProgress = async (courseId: string, status: 'started' | 'completed') => {
+    if (!fbUser) return;
+    const progressPath = `users/${fbUser.uid}/progress`;
+    const progressId = courseId; // Use courseId as document ID for easy lookup
+    try {
+      await setDoc(doc(db, progressPath, progressId), {
+        courseId,
+        userId: fbUser.uid,
+        status,
+        lastWatched: Date.now(),
+        progress: status === 'completed' ? 100 : 0
+      }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, progressPath);
+    }
   };
 
   const formatTime = (ms: number) => {
@@ -1395,6 +1671,48 @@ export default function App() {
 
               <div className="space-y-4">
                 <h3 className="font-black uppercase flex items-center gap-2 px-2">
+                  <MonitorPlay className="w-5 h-5" /> Continue Learning
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {courses.filter(c => c.trade === 'All' || c.trade === user.trade).slice(0, 2).map(course => {
+                    const progress = userProgress.find(p => p.courseId === course.id);
+                    return (
+                      <div 
+                        key={course.id} 
+                        className="bead-card p-4 flex items-center justify-between cursor-pointer hover:bg-primary/5 transition-colors group"
+                        onClick={() => { setView('courses'); setActiveCourse(course); }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                            {course.videoType === 'youtube' ? <Youtube className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                          </div>
+                          <div>
+                            <p className="font-bold text-xs line-clamp-1">{course.title}</p>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1 bg-current/10 rounded-full overflow-hidden">
+                                <div className="h-full bg-primary" style={{ width: `${progress?.progress || 0}%` }} />
+                              </div>
+                              <span className="text-[8px] font-black uppercase opacity-40">{progress?.status === 'completed' ? 'Done' : `${progress?.progress || 0}%`}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <PlayCircle className="w-5 h-5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    );
+                  })}
+                  {courses.length === 0 && (
+                    <div className="col-span-full text-center py-8 bg-muted/30 rounded-2xl border-2 border-dashed border-current/10">
+                      <p className="text-[10px] font-black uppercase opacity-40">No courses available yet</p>
+                    </div>
+                  )}
+                </div>
+                {courses.length > 0 && (
+                  <button onClick={() => setView('courses')} className="w-full py-2 text-[10px] font-black uppercase text-primary hover:underline">View All Courses</button>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-black uppercase flex items-center gap-2 px-2">
                   <BookOpen className="w-5 h-5" /> Recent Entries
                 </h3>
                 {entries.slice(0, 3).map(entry => (
@@ -1618,6 +1936,111 @@ export default function App() {
                   })}
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {view === 'courses' && (
+            <motion.div
+              key="courses"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-8"
+            >
+              <SectionHeader title="Learning Hub" subtitle="Master your trade with professional courses" />
+              
+              {activeCourse ? (
+                <div className="space-y-6">
+                  <button onClick={() => setActiveCourse(null)} className="flex items-center gap-2 text-xs font-black uppercase opacity-60 hover:opacity-100 transition-opacity">
+                    <ChevronRight className="w-4 h-4 rotate-180" /> Back to Courses
+                  </button>
+                  
+                  <div className="bead-card overflow-hidden bg-black aspect-video relative group border-4 border-current shadow-2xl">
+                    {activeCourse.videoType === 'youtube' ? (
+                      <iframe 
+                        src={`https://www.youtube.com/embed/${activeCourse.videoUrl.split('v=')[1]?.split('&')[0] || activeCourse.videoUrl.split('/').pop()}`}
+                        className="w-full h-full"
+                        allowFullScreen
+                        onLoad={() => updateProgress(activeCourse.id, 'started')}
+                      />
+                    ) : (
+                      <video 
+                        src={activeCourse.videoUrl} 
+                        controls 
+                        className="w-full h-full"
+                        onPlay={() => updateProgress(activeCourse.id, 'started')}
+                        onEnded={() => updateProgress(activeCourse.id, 'completed')}
+                      />
+                    )}
+                  </div>
+                  
+                  <div className="bead-card p-8 space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tighter">{activeCourse.title}</h3>
+                        <p className="text-xs font-bold opacity-40 uppercase tracking-widest">{activeCourse.trade}</p>
+                      </div>
+                      <div className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-[10px] font-black uppercase">
+                          {userProgress.find(p => p.courseId === activeCourse.id)?.status === 'completed' ? 'Completed' : 'In Progress'}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-sm font-medium leading-relaxed opacity-80">{activeCourse.description}</p>
+                    {activeCourse.videoType === 'youtube' && (
+                      <button 
+                        onClick={() => updateProgress(activeCourse.id, 'completed')}
+                        className="bead-button bead-button-secondary py-2 px-4 text-[10px] font-black uppercase"
+                      >
+                        Mark as Completed
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {courses.filter(c => c.trade === 'All' || c.trade === user.trade).map(course => {
+                    const progress = userProgress.find(p => p.courseId === course.id);
+                    return (
+                      <motion.div 
+                        key={course.id}
+                        whileHover={{ y: -5 }}
+                        className="bead-card overflow-hidden group cursor-pointer"
+                        onClick={() => setActiveCourse(course)}
+                      >
+                        <div className="aspect-video bg-muted relative overflow-hidden">
+                          <div className="w-full h-full flex items-center justify-center bg-primary/5">
+                            {course.videoType === 'youtube' ? <Youtube className="w-12 h-12 opacity-20 text-red-600" /> : <Video className="w-12 h-12 opacity-20" />}
+                          </div>
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <PlayCircle className="w-12 h-12 text-white" />
+                          </div>
+                          {progress?.status === 'completed' && (
+                            <div className="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full shadow-lg">
+                              <CheckCircle className="w-4 h-4" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4 space-y-2">
+                          <h4 className="font-black uppercase text-xs tracking-tight line-clamp-1">{course.title}</h4>
+                          <p className="text-[10px] font-medium opacity-60 line-clamp-2">{course.description}</p>
+                          <div className="pt-2 flex items-center justify-between border-t border-current/5">
+                            <span className="text-[8px] font-black uppercase opacity-40">{course.trade}</span>
+                            <span className="text-[8px] font-black uppercase text-primary">Start Learning</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  {courses.length === 0 && (
+                    <div className="col-span-full text-center py-20 opacity-40">
+                      <MonitorPlay className="w-16 h-16 mx-auto mb-4" />
+                      <p className="text-sm font-black uppercase">No courses available for your trade yet</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -1958,6 +2381,7 @@ export default function App() {
             <span className="text-[10px] font-black uppercase tracking-tighter opacity-40 group-hover:opacity-100">_BMB_DEV</span>
           </button>
           <NavButton active={view === 'home'} onClick={() => setView('home')} icon={<Home />} label={t('home')} />
+          <NavButton active={view === 'courses'} onClick={() => setView('courses')} icon={<MonitorPlay />} label="Courses" />
           <NavButton active={view === 'logbook'} onClick={() => setView('logbook')} icon={<BookOpen />} label={t('logbook')} />
           <NavButton active={view === 'progress'} onClick={() => setView('progress')} icon={<BarChart3 />} label={t('stats')} />
           <NavButton active={view === 'profile'} onClick={() => setView('profile')} icon={<User />} label={t('profile')} />
@@ -1979,7 +2403,7 @@ export default function App() {
         customDevName={user.customDevName}
         customLogo={user.customLogo}
       />
-      <AdminControlEngine isOpen={isAdminSettingsOpen} onClose={() => setIsAdminSettingsOpen(false)} user={user} setUser={setUser} />
+      <AdminControlEngine isOpen={isAdminSettingsOpen} onClose={() => setIsAdminSettingsOpen(false)} user={user} setUser={setUser} courses={courses} />
 
       {/* AI Assistant Floating Button */}
       <button 

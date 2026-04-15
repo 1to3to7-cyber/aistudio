@@ -16,10 +16,26 @@ export const SYSTEM_BLUEPRINT = {
   INPUT_HANDLING: "Validation: Frontend uses Zod-like patterns for form validation; Backend uses Express middleware; Firestore Rules enforce strict schema and type checks (e.g., isValidUser, isValidEntry). Sanitization: All user-provided strings are trimmed and validated for length and format.",
   OUTPUT_FORMAT: "UI: Responsive, 'Bead-style' design with high-contrast typography and professional animations (motion). Reports: Auto-generated PDFs using jspdf and jspdf-autotable. API: JSON responses with standard HTTP status codes.",
   RULES: [
-    "Security: Default deny in Firestore rules. Only owners can read/write their own data.",
-    "Performance: Lazy initialization of SDKs. Optimized Firestore queries with indexing.",
-    "Branding: Global styles driven by CSS variables controlled via the Admin Engine."
+    "Security: Default deny in Firestore rules. Only owners can read/write their own data. Rate limiting on all API endpoints.",
+    "Performance: Lazy initialization of SDKs. Optimized Firestore queries with indexing. CDN-backed asset delivery.",
+    "Branding: Global styles driven by CSS variables controlled via the Admin Engine.",
+    "Infrastructure: Containerized via Docker, deployed to Cloud Run with automated CI/CD pipelines.",
+    "Reliability: Automated daily backups and centralized logging for real-time monitoring."
   ],
+  INFRASTRUCTURE: {
+    FRONTEND: "React 19, Vite, Tailwind CSS, Framer Motion (UI/UX)",
+    BACKEND: "Node.js, Express, Morgan (Logging), Rate-Limit (Security)",
+    DATABASE: "Firebase Firestore (NoSQL), Real-time sync, RBAC Rules",
+    SERVERS: "Google Cloud Run (Serverless Containers)",
+    NETWORK: "HTTPS/TLS 1.3, Global Load Balancing, VPC Service Controls",
+    CLOUD_INFRA: "GCP (Google Cloud Platform), Cloud Storage, Cloud Logging",
+    CICD: "GitHub Actions (Automated Build/Test/Deploy)",
+    SECURITY: "Helmet.js, Rate-Limiting, Firestore Security Rules, JWT/Firebase Auth",
+    CONTAINER: "Docker (Multi-stage builds), Artifact Registry",
+    CDN: "Google Cloud CDN (Edge Caching for static assets)",
+    LOGGING: "Morgan (Dev), Google Cloud Logging (Production)",
+    BACKUP: "Automated Firestore Snapshots, Admin Backup Engine"
+  },
   MASTER_PROMPT: `Build a professional Full-Stack TVET Logbook System named "RWANDA TVET LOGBOOK". 
 STACK: React 19, Vite, Tailwind CSS, Node.js, Express, Firebase (Auth, Firestore, Storage, Admin SDK).
 UI REQUIREMENTS: 

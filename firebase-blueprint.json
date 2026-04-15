@@ -49,6 +49,34 @@
         "customPrimaryColor": { "type": "string" },
         "certificates": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "Course": {
+      "title": "Educational Course",
+      "description": "A course with video content for students",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "videoType": { "type": "string", "enum": ["youtube", "local"] },
+        "thumbnail": { "type": "string" },
+        "trade": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "videoUrl", "videoType"]
+    },
+    "UserProgress": {
+      "title": "User Course Progress",
+      "description": "Tracking student progress in courses",
+      "type": "object",
+      "properties": {
+        "courseId": { "type": "string" },
+        "userId": { "type": "string" },
+        "status": { "type": "string", "enum": ["started", "completed"] },
+        "lastWatched": { "type": "string", "format": "date-time" },
+        "progress": { "type": "number" }
+      },
+      "required": ["courseId", "userId", "status"]
     }
   },
   "firestore": {
@@ -67,6 +95,14 @@
     "/config/branding": {
       "schema": "GlobalConfig",
       "description": "Global branding configuration"
+    },
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Educational courses available to students"
+    },
+    "/users/{userId}/progress/{progressId}": {
+      "schema": "UserProgress",
+      "description": "Student progress tracking for courses"
     }
   }
 }

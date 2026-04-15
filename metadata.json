@@ -1,6 +1,8 @@
 {
-  "name": "RWANDA TVET LOGBOOK FORM",
-  "description": "A culturally immersive, AI-assisted digital logbook for Rwandan TVET students, featuring Imigongo patterns and heritage-inspired themes. Developed by BIZIMANA FILS (Founder, Lead Developer & UI/UX Designer).",
+  "name": "RWANDA TVET LOGBOOK",
+  "description": "A professional AI-assisted digital logbook for Rwandan TVET students. Developed by BIZIMANA FILS.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [],
+  "C7": [],
+  "aq": []
 }

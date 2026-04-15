@@ -5,7 +5,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 const resources = {
   en: {
     translation: {
-      "app_name": "RWANDA TVET LOGBOOK FORM",
+      "app_name": "RWANDA TVET LOGBOOK",
       "home": "Home",
       "logbook": "Logbook",
       "stats": "Stats",
@@ -55,7 +55,7 @@ const resources = {
   },
   rw: {
     translation: {
-      "app_name": "RWANDA TVET LOGBOOK FORM",
+      "app_name": "RWANDA TVET LOGBOOK",
       "home": "Ahabanza",
       "logbook": "Igitabo cy'akazi",
       "stats": "Imibare",
@@ -105,7 +105,7 @@ const resources = {
   },
   fr: {
     translation: {
-      "app_name": "RWANDA TVET LOGBOOK FORM",
+      "app_name": "RWANDA TVET LOGBOOK",
       "home": "Accueil",
       "logbook": "Carnet",
       "stats": "Stats",

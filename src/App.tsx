@@ -34,7 +34,10 @@ import {
   ArrowUpDown,
   SortAsc,
   SortDesc,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Code,
+  Terminal,
+  FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
@@ -44,8 +47,10 @@ import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { Theme, Trade, LogEntry, UserProfile } from './types';
 import { TRADES_WITH_ICONS, THEMES, BADGES, TRADE_KNOWLEDGE, DEVELOPER_INFO } from './constants';
+import { SYSTEM_BLUEPRINT } from './constants/blueprint';
 import { Logo } from './components/Logo';
 import { getAISuggestions, askPlatformAssistant, suggestTask } from './services/geminiService';
+import { apiService } from './services/apiService';
 
 import { 
   onAuthStateChanged, 
@@ -352,6 +357,61 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
   const [certificates, setCertificates] = useState<string[]>(user.certificates || []);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: boolean }>({});
+  const [activeTab, setActiveTab] = useState<'branding' | 'code'>('branding');
+
+  const exportBlueprintPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    doc.setFillColor(154, 52, 18); // Primary color
+    doc.rect(0, 0, pageWidth, 40, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.text("SYSTEM BLUEPRINT", 14, 25);
+    
+    doc.setFontSize(10);
+    doc.text("RWANDA TVET LOGBOOK ARCHITECTURE", 14, 33);
+    
+    let y = 55;
+    doc.setTextColor(0, 0, 0);
+    
+    const addSection = (title: string, content: string | string[]) => {
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(title, 14, y);
+      y += 7;
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      
+      const lines = Array.isArray(content) ? content : doc.splitTextToSize(content, pageWidth - 28);
+      lines.forEach((line: string) => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        doc.text(Array.isArray(content) ? `• ${line}` : line, 14, y);
+        y += 6;
+      });
+      y += 5;
+    };
+
+    addSection("SYSTEM OVERVIEW", SYSTEM_BLUEPRINT.SYSTEM);
+    addSection("CORE FEATURES", SYSTEM_BLUEPRINT.FEATURES);
+    addSection("TECHNICAL LOGIC", SYSTEM_BLUEPRINT.LOGIC);
+    addSection("DATA FLOW", SYSTEM_BLUEPRINT.DATA_FLOW);
+    addSection("INPUT HANDLING", SYSTEM_BLUEPRINT.INPUT_HANDLING);
+    addSection("OUTPUT FORMAT", SYSTEM_BLUEPRINT.OUTPUT_FORMAT);
+    addSection("SYSTEM RULES", SYSTEM_BLUEPRINT.RULES);
+    
+    y += 5;
+    doc.setDrawColor(200);
+    doc.line(14, y, pageWidth - 14, y);
+    y += 10;
+    
+    addSection("MASTER REBUILD PROMPT", SYSTEM_BLUEPRINT.MASTER_PROMPT);
+    
+    doc.save("RWANDA_TVET_SYSTEM_BLUEPRINT.pdf");
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'dev' | 'cert') => {
     const file = e.target.files?.[0];
@@ -456,11 +516,11 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
             onClick={e => e.stopPropagation()}
           >
             <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-muted rounded-full transition-colors"><X className="w-5 h-5" /></button>
-            <div className="flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center shadow-lg"><Settings className="w-6 h-6" /></div>
               <div className="flex-1">
                 <h2 className="text-2xl font-black uppercase tracking-tighter text-primary leading-none">Control Engine</h2>
-                <p className="text-[10px] font-bold uppercase opacity-40 tracking-widest">Visual Identity Management</p>
+                <p className="text-[10px] font-bold uppercase opacity-40 tracking-widest">System Management</p>
               </div>
               <div className="flex items-center gap-1 bg-green-50 text-green-600 px-2 py-1 rounded-full border border-green-200 animate-pulse">
                 <div className="w-1.5 h-1.5 bg-green-600 rounded-full" />
@@ -468,7 +528,29 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="flex bg-muted rounded-xl p-1 mb-6 border-2 border-current/10">
+              <button 
+                onClick={() => setActiveTab('branding')}
+                className={cn(
+                  "flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2",
+                  activeTab === 'branding' ? "bg-primary text-white shadow-md" : "hover:bg-primary/10"
+                )}
+              >
+                <ImageIcon className="w-3 h-3" /> Branding
+              </button>
+              <button 
+                onClick={() => setActiveTab('code')}
+                className={cn(
+                  "flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2",
+                  activeTab === 'code' ? "bg-primary text-white shadow-md" : "hover:bg-primary/10"
+                )}
+              >
+                <Code className="w-3 h-3" /> Code Chamber
+              </button>
+            </div>
+
+            {activeTab === 'branding' ? (
+              <div className="space-y-6">
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase opacity-60 tracking-widest">Application Name</label>
                 <input 
@@ -572,6 +654,52 @@ const AdminControlEngine = ({ isOpen, onClose, user, setUser }: { isOpen: boolea
                 </button>
               </div>
             </div>
+          ) : (
+            <div className="space-y-6">
+                <div className="bead-card bg-black p-6 font-mono text-[10px] text-green-400 overflow-y-auto max-h-[40vh] border-4">
+                  <div className="flex items-center gap-2 mb-4 border-b border-green-900 pb-2">
+                    <Terminal className="w-4 h-4" />
+                    <span className="uppercase font-black tracking-widest">System_Blueprint.sh</span>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-white font-black"># SYSTEM_OVERVIEW</p>
+                      <p className="opacity-80">{SYSTEM_BLUEPRINT.SYSTEM}</p>
+                    </div>
+                    <div>
+                      <p className="text-white font-black"># CORE_FEATURES</p>
+                      <ul className="list-disc list-inside opacity-80">
+                        {SYSTEM_BLUEPRINT.FEATURES.map((f, i) => <li key={i}>{f}</li>)}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-white font-black"># MASTER_PROMPT</p>
+                      <p className="opacity-60 italic">{SYSTEM_BLUEPRINT.MASTER_PROMPT.substring(0, 200)}...</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <button 
+                    onClick={exportBlueprintPDF}
+                    className="bead-button bead-button-primary w-full py-4 flex items-center justify-center gap-3"
+                  >
+                    <Download className="w-5 h-5" />
+                    Download System Blueprint (PDF)
+                  </button>
+                  <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
+                    <div className="flex items-center gap-2 text-primary mb-1">
+                      <Info className="w-4 h-4" />
+                      <p className="text-[10px] font-black uppercase">Developer Note</p>
+                    </div>
+                    <p className="text-[9px] leading-relaxed opacity-60">
+                      The Code Chamber stores the technical architecture and master prompt used to build this platform. 
+                      Exporting the blueprint allows you to rebuild or audit the entire system logic.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             <CornerBeads />
           </motion.div>
         </motion.div>
@@ -886,13 +1014,13 @@ export default function App() {
         const isDark = e.matches;
         // Map auto to specific themes for now
         const targetTheme = isDark ? 'agaseke' : 'earth';
-        document.body.className = cn("min-h-screen imigongo-pattern pb-24", `theme-${targetTheme}`);
+        document.body.className = cn("min-h-screen rwanda-pattern pb-24", `theme-${targetTheme}`);
       };
       updateTheme(mediaQuery);
       mediaQuery.addEventListener('change', updateTheme);
       return () => mediaQuery.removeEventListener('change', updateTheme);
     } else {
-      document.body.className = cn("min-h-screen imigongo-pattern pb-24", `theme-${user.theme}`);
+      document.body.className = cn("min-h-screen rwanda-pattern pb-24", `theme-${user.theme}`);
     }
   }, [user.theme]);
 
@@ -920,7 +1048,7 @@ export default function App() {
     
     try {
       if (isSystemAdmin) {
-        // Save to Admin Chamber
+        // Save to Admin Chamber (Direct Firestore for now)
         await addDoc(collection(db, 'admin_chamber'), {
           ...entry,
           authorName: user.name,
@@ -928,8 +1056,8 @@ export default function App() {
           status: 'verified' // Admins are auto-verified
         });
       } else {
-        // Save to User's entries
-        await addDoc(collection(db, 'users', fbUser.uid, 'entries'), entry);
+        // Save to User's entries via Backend API
+        await apiService.addLogEntry(fbUser.uid, entry);
       }
       
       // Show confirmation
